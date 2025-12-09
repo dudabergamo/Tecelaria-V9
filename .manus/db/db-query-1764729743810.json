@@ -1,0 +1,9 @@
+{
+  "query": "SELECT name, COUNT(*) as count FROM memory_categories GROUP BY name HAVING count > 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3awzbZLqkfHdrQk.d98bc92e17ae --database nWULn2utrwAMtRxYkxocd3 --execute SELECT name, COUNT(*) as count FROM memory_categories GROUP BY name HAVING count > 1;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 51
+}

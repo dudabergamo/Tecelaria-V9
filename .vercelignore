@@ -1,0 +1,24 @@
+# Arquivos de desenvolvimento
+node_modules
+.git
+.env
+.env.local
+
+# Arquivos de build temporários
+*.log
+*.tsbuildinfo
+
+# Arquivos do Manus (não necessários no Vercel)
+.manus
+screenshots
+page_texts
+
+# Testes
+*.test.ts
+*.test.tsx
+**/__tests__
+coverage
+
+# Documentação local
+README.md
+TODO.md

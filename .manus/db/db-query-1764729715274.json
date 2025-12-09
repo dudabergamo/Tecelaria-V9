@@ -1,0 +1,165 @@
+{
+  "query": "SELECT id, name, `order` FROM memory_categories ORDER BY name, id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3awzbZLqkfHdrQk.d98bc92e17ae --database nWULn2utrwAMtRxYkxocd3 --execute SELECT id, name, `order` FROM memory_categories ORDER BY name, id;",
+  "rows": [
+    {
+      "id": "10",
+      "name": "Amizades",
+      "order": "10"
+    },
+    {
+      "id": "30010",
+      "name": "Amizades",
+      "order": "10"
+    },
+    {
+      "id": "14",
+      "name": "Amor e Relacionamentos",
+      "order": "14"
+    },
+    {
+      "id": "30014",
+      "name": "Amor e Relacionamentos",
+      "order": "14"
+    },
+    {
+      "id": "6",
+      "name": "Carreira",
+      "order": "6"
+    },
+    {
+      "id": "30006",
+      "name": "Carreira",
+      "order": "6"
+    },
+    {
+      "id": "7",
+      "name": "Casamento",
+      "order": "7"
+    },
+    {
+      "id": "30007",
+      "name": "Casamento",
+      "order": "7"
+    },
+    {
+      "id": "12",
+      "name": "Desafios e Superações",
+      "order": "12"
+    },
+    {
+      "id": "30012",
+      "name": "Desafios e Superações",
+      "order": "12"
+    },
+    {
+      "id": "3",
+      "name": "Escola",
+      "order": "3"
+    },
+    {
+      "id": "30003",
+      "name": "Escola",
+      "order": "3"
+    },
+    {
+      "id": "4",
+      "name": "Faculdade",
+      "order": "4"
+    },
+    {
+      "id": "30004",
+      "name": "Faculdade",
+      "order": "4"
+    },
+    {
+      "id": "2",
+      "name": "Família",
+      "order": "2"
+    },
+    {
+      "id": "30002",
+      "name": "Família",
+      "order": "2"
+    },
+    {
+      "id": "8",
+      "name": "Filhos",
+      "order": "8"
+    },
+    {
+      "id": "30008",
+      "name": "Filhos",
+      "order": "8"
+    },
+    {
+      "id": "11",
+      "name": "Hobbies e Paixões",
+      "order": "11"
+    },
+    {
+      "id": "30011",
+      "name": "Hobbies e Paixões",
+      "order": "11"
+    },
+    {
+      "id": "1",
+      "name": "Infância",
+      "order": "1"
+    },
+    {
+      "id": "30001",
+      "name": "Infância",
+      "order": "1"
+    },
+    {
+      "id": "15",
+      "name": "Memórias Aleatórias",
+      "order": "15"
+    },
+    {
+      "id": "30015",
+      "name": "Memórias Aleatórias",
+      "order": "15"
+    },
+    {
+      "id": "5",
+      "name": "Primeiro Trabalho",
+      "order": "5"
+    },
+    {
+      "id": "30005",
+      "name": "Primeiro Trabalho",
+      "order": "5"
+    },
+    {
+      "id": "13",
+      "name": "Realizações",
+      "order": "13"
+    },
+    {
+      "id": "30013",
+      "name": "Realizações",
+      "order": "13"
+    },
+    {
+      "id": "60001",
+      "name": "Receitas da Família",
+      "order": "100"
+    },
+    {
+      "id": "9",
+      "name": "Viagens",
+      "order": "9"
+    },
+    {
+      "id": "30009",
+      "name": "Viagens",
+      "order": "9"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\torder\n10\tAmizades\t10\n30010\tAmizades\t10\n14\tAmor e Relacionamentos\t14\n30014\tAmor e Relacionamentos\t14\n6\tCarreira\t6\n30006\tCarreira\t6\n7\tCasamento\t7\n30007\tCasamento\t7\n12\tDesafios e Superações\t12\n30012\tDesafios e Superações\t12\n3\tEscola\t3\n30003\tEscola\t3\n4\tFaculdade\t4\n30004\tFaculdade\t4\n2\tFamília\t2\n30002\tFamília\t2\n8\tFilhos\t8\n30008\tFilhos\t8\n11\tHobbies e Paixões\t11\n30011\tHobbies e Paixões\t11\n1\tInfância\t1\n30001\tInfância\t1\n15\tMemórias Aleatórias\t15\n30015\tMemórias Aleatórias\t15\n5\tPrimeiro Trabalho\t5\n30005\tPrimeiro Trabalho\t5\n13\tRealizações\t13\n30013\tRealizações\t13\n60001\tReceitas da Família\t100\n9\tViagens\t9\n30009\tViagens\t9\n",
+  "stderr": "",
+  "execution_time_ms": 48
+}

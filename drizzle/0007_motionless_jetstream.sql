@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `cep` varchar(10);

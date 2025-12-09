@@ -1,0 +1,1 @@
+ALTER TABLE `question_boxes` ADD `categoryId` int;

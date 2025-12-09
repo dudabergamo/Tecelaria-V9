@@ -1,0 +1,46 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3awzbZLqkfHdrQk.d98bc92e17ae --database nWULn2utrwAMtRxYkxocd3 --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "book_chapters"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "book_metadata"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "daily_inspirations"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "followup_questions"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "kit_members"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "kits"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "memories"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "memory_categories"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "memory_records"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "question_boxes"
+    },
+    {
+      "Tables_in_nWULn2utrwAMtRxYkxocd3": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_nWULn2utrwAMtRxYkxocd3\n__drizzle_migrations\nbook_chapters\nbook_metadata\ndaily_inspirations\nfollowup_questions\nkit_members\nkits\nmemories\nmemory_categories\nmemory_records\nquestion_boxes\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

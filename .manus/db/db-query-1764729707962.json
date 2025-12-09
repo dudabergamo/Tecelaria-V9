@@ -1,0 +1,70 @@
+{
+  "query": "SELECT name, COUNT(*) as count FROM memory_categories GROUP BY name HAVING count > 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3awzbZLqkfHdrQk.d98bc92e17ae --database nWULn2utrwAMtRxYkxocd3 --execute SELECT name, COUNT(*) as count FROM memory_categories GROUP BY name HAVING count > 1;",
+  "rows": [
+    {
+      "name": "Desafios e Superações",
+      "count": "2"
+    },
+    {
+      "name": "Viagens",
+      "count": "2"
+    },
+    {
+      "name": "Escola",
+      "count": "2"
+    },
+    {
+      "name": "Primeiro Trabalho",
+      "count": "2"
+    },
+    {
+      "name": "Memórias Aleatórias",
+      "count": "2"
+    },
+    {
+      "name": "Hobbies e Paixões",
+      "count": "2"
+    },
+    {
+      "name": "Realizações",
+      "count": "2"
+    },
+    {
+      "name": "Filhos",
+      "count": "2"
+    },
+    {
+      "name": "Casamento",
+      "count": "2"
+    },
+    {
+      "name": "Amor e Relacionamentos",
+      "count": "2"
+    },
+    {
+      "name": "Infância",
+      "count": "2"
+    },
+    {
+      "name": "Faculdade",
+      "count": "2"
+    },
+    {
+      "name": "Família",
+      "count": "2"
+    },
+    {
+      "name": "Amizades",
+      "count": "2"
+    },
+    {
+      "name": "Carreira",
+      "count": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tcount\nDesafios e Superações\t2\nViagens\t2\nEscola\t2\nPrimeiro Trabalho\t2\nMemórias Aleatórias\t2\nHobbies e Paixões\t2\nRealizações\t2\nFilhos\t2\nCasamento\t2\nAmor e Relacionamentos\t2\nInfância\t2\nFaculdade\t2\nFamília\t2\nAmizades\t2\nCarreira\t2\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

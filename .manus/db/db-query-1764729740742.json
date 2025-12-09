@@ -1,0 +1,9 @@
+{
+  "query": "DELETE t1 FROM memory_categories t1 INNER JOIN memory_categories t2 WHERE t1.id > t2.id AND t1.name = t2.name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3awzbZLqkfHdrQk.d98bc92e17ae --database nWULn2utrwAMtRxYkxocd3 --execute DELETE t1 FROM memory_categories t1 INNER JOIN memory_categories t2 WHERE t1.id > t2.id AND t1.name = t2.name;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 48
+}
