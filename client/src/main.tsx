@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Auth0Provider, useAuth0 } from "@auth0/auth0-react";
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
@@ -42,58 +42,88 @@ const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
 const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
 const auth0RedirectUri = `${window.location.origin}/callback`;
 
-// Store current token globally
-let currentToken: string | null = null;
+// Global token store
+let globalToken: string | null = null;
 
-const trpcClient = trpc.createClient({
-  links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-          headers: {
-            ...(init?.headers ?? {}),
-            ...(currentToken && { Authorization: `Bearer ${currentToken}` }),
-          },
-        });
-      },
-    }),
-  ],
-});
+// Create TRPC client with dynamic token
+const createTrpcClient = () => {
+  return trpc.createClient({
+    links: [
+      httpBatchLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch(input, init) {
+          const headers: Record<string, string> = {
+            ...(init?.headers as Record<string, string> || {}),
+          };
 
-// Component that updates the token
-function TokenUpdater() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+          // Add token if available
+          if (globalToken) {
+            headers["Authorization"] = `Bearer ${globalToken}`;
+            console.log("[TRPC] Sending token:", globalToken.substring(0, 20) + "...");
+          } else {
+            console.log("[TRPC] No token available");
+          }
+
+          return globalThis.fetch(input, {
+            ...(init ?? {}),
+            credentials: "include",
+            headers,
+          });
+        },
+      }),
+    ],
+  });
+};
+
+let trpcClient = createTrpcClient();
+
+// Component that manages token updates
+function TokenManager() {
+  const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const [lastToken, setLastToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isLoading) return;
+
     if (!isAuthenticated) {
-      currentToken = null;
+      globalToken = null;
+      setLastToken(null);
+      console.log("[TokenManager] User not authenticated");
       return;
     }
 
     const updateToken = async () => {
       try {
-        const token = await getAccessTokenSilently();
-        currentToken = token;
+        console.log("[TokenManager] Getting token from Auth0...");
+        const token = await getAccessTokenSilently({
+          detailedResponse: false,
+        });
+        
+        globalToken = token;
+        setLastToken(token);
+        console.log("[TokenManager] Token updated:", token.substring(0, 20) + "...");
       } catch (error) {
-        console.error("Failed to get token:", error);
-        currentToken = null;
+        console.error("[TokenManager] Failed to get token:", error);
+        globalToken = null;
+        setLastToken(null);
       }
     };
 
     updateToken();
-  }, [isAuthenticated, getAccessTokenSilently]);
+
+    // Update token every 5 minutes
+    const interval = setInterval(updateToken, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, isLoading, getAccessTokenSilently]);
 
   return null;
 }
 
-function AppWithTokenUpdater() {
+function AppWithTokenManager() {
   return (
     <>
-      <TokenUpdater />
+      <TokenManager />
       <App />
     </>
   );
@@ -105,11 +135,11 @@ createRoot(document.getElementById("root")!).render(
     clientId={auth0ClientId}
     authorizationParams={{
       redirect_uri: auth0RedirectUri,
-         }}
+    }}
   >
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <AppWithTokenUpdater />
+        <AppWithTokenManager />
       </QueryClientProvider>
     </trpc.Provider>
   </Auth0Provider>
