@@ -9,7 +9,7 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient( );
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -42,6 +42,9 @@ const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
 const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
 const auth0RedirectUri = `${window.location.origin}/callback`;
 
+// Auth0 API Audience - must match the Auth0 API identifier
+const auth0Audience = auth0ClientId; // Use client ID as audience
+
 // Global token store
 let globalToken: string | null = null;
 
@@ -52,7 +55,7 @@ const createTrpcClient = () => {
       httpBatchLink({
         url: "/api/trpc",
         transformer: superjson,
-        fetch(input, init) {
+        fetch(input, init ) {
           const headers: Record<string, string> = {
             ...(init?.headers as Record<string, string> || {}),
           };
@@ -60,7 +63,8 @@ const createTrpcClient = () => {
           // Add token if available
           if (globalToken) {
             headers["Authorization"] = `Bearer ${globalToken}`;
-            console.log("[TRPC] Sending token:", globalToken.substring(0, 20) + "...");
+            console.log("[TRPC] Sending token:", globalToken.substring(0, 30) + "...");
+            console.log("[TRPC] Token parts:", globalToken.split(".").length);
           } else {
             console.log("[TRPC] No token available");
           }
@@ -78,13 +82,19 @@ const createTrpcClient = () => {
 
 let trpcClient = createTrpcClient();
 
-// Component that manages token updates
+/**
+ * TokenManager Component
+ * Manages Auth0 token lifecycle and updates the global token
+ */
 function TokenManager() {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
   const [lastToken, setLastToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      console.log("[TokenManager] Auth0 is loading...");
+      return;
+    }
 
     if (!isAuthenticated) {
       globalToken = null;
@@ -96,13 +106,47 @@ function TokenManager() {
     const updateToken = async () => {
       try {
         console.log("[TokenManager] Getting token from Auth0...");
+        console.log("[TokenManager] Using audience:", auth0Audience);
+        
         const token = await getAccessTokenSilently({
           detailedResponse: false,
+          audience: auth0Audience,
         });
+        
+        if (!token) {
+          console.error("[TokenManager] Auth0 returned empty token");
+          globalToken = null;
+          setLastToken(null);
+          return;
+        }
         
         globalToken = token;
         setLastToken(token);
-        console.log("[TokenManager] Token updated:", token.substring(0, 20) + "...");
+        
+        // Log token info for debugging
+        const tokenParts = token.split(".");
+        console.log("[TokenManager] ✅ Token received");
+        console.log("[TokenManager] Token parts:", tokenParts.length);
+        console.log("[TokenManager] Token preview:", token.substring(0, 50) + "...");
+        
+        // Try to decode and show claims (for debugging)
+        try {
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(
+              Buffer.from(tokenParts[1], "base64").toString("utf-8")
+            );
+            console.log("[TokenManager] Token claims:", {
+              sub: payload.sub,
+              email: payload.email,
+              aud: payload.aud,
+              exp: new Date(payload.exp * 1000),
+            });
+          } else {
+            console.warn("[TokenManager] Token has", tokenParts.length, "parts (expected 3)");
+          }
+        } catch (e) {
+          console.warn("[TokenManager] Could not decode token claims");
+        }
       } catch (error) {
         console.error("[TokenManager] Failed to get token:", error);
         globalToken = null;
@@ -110,9 +154,10 @@ function TokenManager() {
       }
     };
 
+    // Update token immediately
     updateToken();
 
-    // Update token every 5 minutes
+    // Update token every 5 minutes (before expiration)
     const interval = setInterval(updateToken, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated, isLoading, getAccessTokenSilently]);
@@ -120,6 +165,9 @@ function TokenManager() {
   return null;
 }
 
+/**
+ * App wrapper with TokenManager
+ */
 function AppWithTokenManager() {
   return (
     <>
@@ -129,12 +177,16 @@ function AppWithTokenManager() {
   );
 }
 
+/**
+ * Render the app
+ */
 createRoot(document.getElementById("root")!).render(
   <Auth0Provider
     domain={auth0Domain}
     clientId={auth0ClientId}
     authorizationParams={{
       redirect_uri: auth0RedirectUri,
+      audience: auth0Audience,
     }}
   >
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
