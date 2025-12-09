@@ -1,4 +1,5 @@
-import { Auth0Provider } from "@auth0/auth0-react";
+import React, { useEffect } from "react";
+import { Auth0Provider, useAuth0 } from "@auth0/auth0-react";
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -41,7 +42,7 @@ const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
 const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
 const auth0RedirectUri = `${window.location.origin}/callback`;
 
-// Create TRPC client that will be updated with token
+// Store current token globally
 let currentToken: string | null = null;
 
 const trpcClient = trpc.createClient({
@@ -63,11 +64,11 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-// Component to update token from Auth0
+// Component that updates the token
 function TokenUpdater() {
-  const { getAccessTokenSilently, isAuthenticated } = require("@auth0/auth0-react").useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isAuthenticated) {
       currentToken = null;
       return;
@@ -97,8 +98,6 @@ function AppWithTokenUpdater() {
     </>
   );
 }
-
-import React from "react";
 
 createRoot(document.getElementById("root")!).render(
   <Auth0Provider
