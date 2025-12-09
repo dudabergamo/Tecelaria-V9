@@ -6,7 +6,6 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { Auth0TokenProvider } from "./contexts/Auth0Context";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -19,7 +18,6 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  // Redirect to Auth0 login
   window.location.href = "/login";
 };
 
@@ -39,58 +37,65 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
-// Create TRPC client with Auth0 token support
-function createTrpcClient(getToken: () => string | null) {
-  return trpc.createClient({
-    links: [
-      httpBatchLink({
-        url: "/api/trpc",
-        transformer: superjson,
-        fetch(input, init) {
-          const token = getToken();
-          return globalThis.fetch(input, {
-            ...(init ?? {}),
-            credentials: "include",
-            headers: {
-              ...(init?.headers ?? {}),
-              ...(token && { Authorization: `Bearer ${token}` }),
-            },
-          });
-        },
-      }),
-    ],
-  });
-}
-
 const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
 const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
 const auth0RedirectUri = `${window.location.origin}/callback`;
 
-// Initialize TRPC client with a placeholder token getter
+// Create TRPC client that will be updated with token
 let currentToken: string | null = null;
-const trpcClient = createTrpcClient(() => currentToken);
 
-function AppWrapper() {
-  return (
-    <Auth0TokenProvider>
-      <TrpcClientUpdater setToken={(token) => { currentToken = token; }} />
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <App />
-        </QueryClientProvider>
-      </trpc.Provider>
-    </Auth0TokenProvider>
-  );
-}
+const trpcClient = trpc.createClient({
+  links: [
+    httpBatchLink({
+      url: "/api/trpc",
+      transformer: superjson,
+      fetch(input, init) {
+        return globalThis.fetch(input, {
+          ...(init ?? {}),
+          credentials: "include",
+          headers: {
+            ...(init?.headers ?? {}),
+            ...(currentToken && { Authorization: `Bearer ${currentToken}` }),
+          },
+        });
+      },
+    }),
+  ],
+});
 
-function TrpcClientUpdater({ setToken }: { setToken: (token: string | null) => void }) {
-  const { token } = require("./contexts/Auth0Context").useAuth0TokenContext();
-  
+// Component to update token from Auth0
+function TokenUpdater() {
+  const { getAccessTokenSilently, isAuthenticated } = require("@auth0/auth0-react").useAuth0();
+
   React.useEffect(() => {
-    setToken(token);
-  }, [token, setToken]);
+    if (!isAuthenticated) {
+      currentToken = null;
+      return;
+    }
+
+    const updateToken = async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        currentToken = token;
+      } catch (error) {
+        console.error("Failed to get token:", error);
+        currentToken = null;
+      }
+    };
+
+    updateToken();
+  }, [isAuthenticated, getAccessTokenSilently]);
 
   return null;
+}
+
+function AppWithTokenUpdater() {
+  return (
+    <>
+      <TokenUpdater />
+      <App />
+    </>
+  );
 }
 
 import React from "react";
@@ -104,6 +109,10 @@ createRoot(document.getElementById("root")!).render(
       audience: auth0Domain,
     }}
   >
-    <AppWrapper />
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <AppWithTokenUpdater />
+      </QueryClientProvider>
+    </trpc.Provider>
   </Auth0Provider>
 );
