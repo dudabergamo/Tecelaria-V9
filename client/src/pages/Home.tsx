@@ -1,4 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth0 } from "@auth0/auth0-react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getLoginUrl } from "@/const";
@@ -79,7 +81,7 @@ export default function Home() {
               ) : (
                 <>
                   <Button asChild size="lg" className="text-lg px-8 py-6 rounded-xl">
-                    <a href={getLoginUrl()}>
+             <a href="/login">
                       <Sparkles className="mr-2 h-5 w-5" />
                       Começar Agora
                     </a>
@@ -396,7 +398,7 @@ export default function Home() {
                   
                   <div className="pt-4">
                     <Button asChild size="lg" variant="outline" className="w-full text-lg py-6 rounded-xl">
-                      <a href={getLoginUrl()}>
+                      <a href="/login">
                         Adquirir Kit Digital
                       </a>
                     </Button>
@@ -428,7 +430,7 @@ export default function Home() {
                   
                   <div className="pt-4">
                     <Button asChild size="lg" className="w-full text-lg py-6 rounded-xl">
-                      <a href={getLoginUrl()}>
+                      <a href="/login">
                         Adquirir Kit Físico
                       </a>
                     </Button>
@@ -503,7 +505,7 @@ export default function Home() {
               Transforme suas memórias em um legado que atravessará gerações.
             </p>
             <Button asChild size="lg" className="text-lg px-12 py-6 rounded-xl">
-              <a href={getLoginUrl()}>
+             <a href="/login">
                 <Sparkles className="mr-2 h-5 w-5" />
                 Começar Agora
               </a>
