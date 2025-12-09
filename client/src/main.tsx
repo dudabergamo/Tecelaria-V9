@@ -105,8 +105,7 @@ createRoot(document.getElementById("root")!).render(
     clientId={auth0ClientId}
     authorizationParams={{
       redirect_uri: auth0RedirectUri,
-      audience: auth0Domain,
-    }}
+         }}
   >
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
