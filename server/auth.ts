@@ -1,4 +1,5 @@
-import { auth, requiresAuth } from 'express-openid-connect';
+import pkg from 'express-openid-connect';
+const { auth, requiresAuth } = pkg;
 
 export const authConfig = {
   authRequired: false,
