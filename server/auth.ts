@@ -1,19 +1,67 @@
-import pkg from 'express-openid-connect';
-const { auth, requiresAuth } = pkg;
+import passport from 'passport';
+import { Strategy as Auth0Strategy } from 'passport-auth0';
+import session from 'express-session';
+import type { Express } from 'express';
 
-export const authConfig = {
-  authRequired: false,
-  auth0Logout: true,
-  secret: process.env.AUTH0_SECRET!,
-  baseURL: process.env.AUTH0_BASE_URL!,
-  clientID: process.env.AUTH0_CLIENT_ID!,
-  issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL!,
-  clientSecret: process.env.AUTH0_CLIENT_SECRET!,
-  routes: {
-    login: '/api/auth/login',
-    logout: '/api/auth/logout',
-    callback: '/api/auth/callback',
-  },
-};
+export function setupAuth(app: Express) {
+  // Configurar sessão
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || 'fallback-secret-change-me',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000, // 24 horas
+      },
+    })
+  );
 
-export { auth, requiresAuth };
+  // Configurar Passport
+  passport.use(
+    new Auth0Strategy(
+      {
+        domain: process.env.AUTH0_DOMAIN!,
+        clientID: process.env.AUTH0_CLIENT_ID!,
+        clientSecret: process.env.AUTH0_CLIENT_SECRET!,
+        callbackURL: process.env.AUTH0_CALLBACK_URL!,
+      },
+      function (accessToken: string, refreshToken: string, extraParams: any, profile: any, done: any) {
+        return done(null, profile);
+      }
+    )
+  );
+
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+
+  passport.deserializeUser((user: any, done) => {
+    done(null, user);
+  });
+
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Rotas de autenticação
+  app.get('/api/auth/login', passport.authenticate('auth0', {
+    scope: 'openid email profile',
+  }));
+
+  app.get('/api/auth/callback', 
+    passport.authenticate('auth0', { failureRedirect: '/' }),
+    (req, res) => {
+      res.redirect('/dashboard');
+    }
+  );
+
+  app.get('/api/auth/logout', (req, res) => {
+    req.logout(() => {
+      res.redirect('/');
+    });
+  });
+
+  app.get('/api/auth/me', (req, res) => {
+    res.json(req.user || null);
+  });
+}
