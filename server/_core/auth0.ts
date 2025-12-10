@@ -1,12 +1,11 @@
 import type { Request } from 'express';
-import { User } from '../../drizzle/schema';
-import { db } from '../db';
-import { users } from '../../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import type { User } from '../../drizzle/schema';
+import { getDb, upsertUser, getUserByOpenId } from '../db';
 
 export async function authenticateAuth0Request(req: Request): Promise<User | null> {
   // Pega o usuário da sessão do Passport
   if (!req.user) {
+    console.log('[Auth0] No user in session');
     return null;
   }
 
@@ -17,34 +16,45 @@ export async function authenticateAuth0Request(req: Request): Promise<User | nul
   const email = auth0User.email || auth0User.emails?.[0]?.value;
   const name = auth0User.displayName || auth0User.name || auth0User.nickname;
 
+  console.log('[Auth0] User data:', { auth0Id, email, name });
+
   if (!auth0Id || !email) {
     console.log('[Auth0] Missing required user data');
     return null;
   }
 
   try {
-    // Busca usuário no banco pelo openId (auth0Id)
-    let user = await db.query.users.findFirst({
-      where: eq(users.openId, auth0Id),
-    });
+    const db = await getDb();
+    if (!db) {
+      console.log('[Auth0] Database not available');
+      return null;
+    }
 
-    // Se não existe, cria novo usuário
+    // Busca ou cria usuário no banco
+    let user = await getUserByOpenId(auth0Id);
+
     if (!user) {
       console.log('[Auth0] Creating new user:', email);
       
-      const [newUser] = await db.insert(users).values({
+      // Cria novo usuário
+      await upsertUser({
         openId: auth0Id,
         email: email,
         name: name,
         role: 'user',
-        hasActiveKit: false,
-        kitStartDate: null,
-      }).returning();
+        lastSignedIn: new Date(),
+      });
 
-      user = newUser;
+      user = await getUserByOpenId(auth0Id);
+    } else {
+      // Atualiza último login
+      await upsertUser({
+        openId: auth0Id,
+        lastSignedIn: new Date(),
+      });
     }
 
-    return user;
+    return user || null;
   } catch (error) {
     console.error('[Auth0] Database error:', error);
     return null;
