@@ -1,12 +1,9 @@
-
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import pkg from "express-openid-connect";
-const { auth } = pkg;
-import { authConfig } from "../auth";
+import { setupAuth } from "../auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -34,17 +31,12 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Configure body parser with larger size limit for file uploads
+  // Configure body parser
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // Auth0 authentication middleware
-  app.use(auth(authConfig));
-
-  // Auth0 user info endpoint
-  app.get('/api/auth/me', (req, res) => {
-    res.json(req.oidc.isAuthenticated() ? req.oidc.user : null);
-  });
+  // Setup Auth0 authentication
+  setupAuth(app);
 
   // tRPC API
   app.use(
@@ -55,7 +47,7 @@ async function startServer() {
     })
   );
 
-  // development mode uses Vite, production mode uses static files
+  // Vite or static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
