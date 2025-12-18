@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function CompleteSignup() {
   const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
+  const { refetchAuth } = useAuth();
   const [email, setEmail] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('signupEmail') || '';
@@ -30,8 +30,8 @@ export default function CompleteSignup() {
   const autoLogin = trpc.auth.autoLogin.useMutation({
     onSuccess: async () => {
       console.log("[CompleteSignup] Auto-login bem-sucedido");
-      // Refazer query de autenticação
-      await queryClient.refetchQueries({ queryKey: ['auth', 'me'] });
+      // Refazer verificação de autenticação
+      await refetchAuth();
       // Limpar dados do localStorage
       localStorage.removeItem('signupEmail');
       localStorage.removeItem('signupPassword');

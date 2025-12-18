@@ -13,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   logout: () => Promise<void>;
+  refetchAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,31 +23,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const checkAuth = async () => {
+    try {
+      console.log('[Auth] Verificando autenticação...');
+      const response = await fetch('/api/auth/me');
+      
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('[Auth] Usuário autenticado:', userData);
+        setUser(userData);
+      } else {
+        console.log('[Auth] Usuário não autenticado');
+        setUser(null);
+      }
+    } catch (err) {
+      console.error('[Auth] Erro ao verificar autenticação:', err);
+      setError('Erro ao verificar autenticação');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Verificar autenticação ao carregar a página
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/me');
-        
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('[Auth] Usuário autenticado:', userData);
-          setUser(userData);
-        } else {
-          console.log('[Auth] Usuário não autenticado');
-          setUser(null);
-        }
-      } catch (err) {
-        console.error('[Auth] Erro ao verificar autenticação:', err);
-        setError('Erro ao verificar autenticação');
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     checkAuth();
   }, []);
+
+  const refetchAuth = async () => {
+    console.log('[Auth] Refazendo verificação de autenticação...');
+    setLoading(true);
+    await checkAuth();
+  };
 
   const logout = async () => {
     try {
@@ -59,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, logout, refetchAuth }}>
       {children}
     </AuthContext.Provider>
   );
