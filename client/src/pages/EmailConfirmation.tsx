@@ -12,6 +12,11 @@ export default function EmailConfirmation() {
   const [, setLocation] = useLocation();
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState(() => {
+    // Get email from URL params or localStorage
+    const params = new URLSearchParams(window.location.search);
+    return params.get('email') || localStorage.getItem('signupEmail') || '';
+  });
 
   const confirmEmail = trpc.auth.confirmEmail.useMutation({
     onSuccess: () => {
@@ -33,7 +38,13 @@ export default function EmailConfirmation() {
 
     setIsLoading(true);
     try {
+      if (!email) {
+        toast.error("Email não encontrado. Por favor, faça signup novamente.");
+        setLocation("/signup");
+        return;
+      }
       await confirmEmail.mutateAsync({
+        email: email,
         code: code.trim(),
       });
     } finally {
