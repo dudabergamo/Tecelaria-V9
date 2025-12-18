@@ -53,6 +53,24 @@ export async function getDb() {
 
 // ==================== USER HELPERS ====================
 
+export async function getUserByOpenId(openId: string): Promise<typeof users.$inferSelect | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.openId, openId))
+      .limit(1);
+
+    return user || null;
+  } catch (error) {
+    console.error("[Database] Error getting user by openId:", error);
+    throw error;
+  }
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
