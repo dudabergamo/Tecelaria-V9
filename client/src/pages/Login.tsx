@@ -1,120 +1,94 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
-import { BookOpen } from "lucide-react";
+import { BookOpen, LogIn } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const login = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      if (data.firstLogin) {
-        toast.success("Login realizado! Bem-vindo ao onboarding.");
-        setLocation("/onboarding");
-      } else {
-        toast.success("Bem-vindo de volta!");
-        setLocation("/dashboard");
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Email ou senha incorretos");
-    },
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!email || !password) {
-      toast.error("Preencha todos os campos");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await login.mutateAsync({
-        email,
-        password,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleAuth0Login = () => {
+    // Redirecionar para Auth0
+    window.location.href = "/api/auth/login";
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-card to-muted flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <BookOpen className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl">Fazer Login</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Acesse sua conta na Tecelaria
-          </p>
-        </CardHeader>
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Link href="/" className="hover:opacity-80 transition-opacity">
+            <img
+              src="/images/logo-transparent.png"
+              alt="Tecelaria"
+              className="h-24 w-auto"
+            />
+          </Link>
+        </div>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
+        {/* Login Card */}
+        <Card className="border-2">
+          <CardHeader className="space-y-2">
+            <div className="flex justify-center mb-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <BookOpen className="h-8 w-8 text-primary" />
+              </div>
             </div>
+            <CardTitle className="text-2xl text-center">Acessar sua Conta</CardTitle>
+            <p className="text-sm text-muted-foreground text-center">
+              Faça login para continuar sua jornada na Tecelaria
+            </p>
+          </CardHeader>
 
-            {/* Senha */}
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Botão de Login */}
+          <CardContent className="space-y-4">
+            {/* Auth0 Login Button */}
             <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading || login.isPending}
+              onClick={handleAuth0Login}
               size="lg"
+              className="w-full text-lg"
             >
-              {isLoading || login.isPending ? "Entrando..." : "Fazer Login"}
+              <LogIn className="mr-2 h-5 w-5" />
+              Fazer Login
             </Button>
 
-            {/* Link para Signup */}
-            <p className="text-center text-sm text-muted-foreground">
-              Não tem uma conta?{" "}
-              <button
-                type="button"
-                onClick={() => setLocation("/signup")}
-                className="text-primary hover:underline font-medium"
-              >
-                Criar conta
-              </button>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-muted"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-card text-muted-foreground">ou</span>
+              </div>
+            </div>
+
+            {/* Back to Home */}
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="w-full text-lg"
+            >
+              <Link href="/">
+                <BookOpen className="mr-2 h-5 w-5" />
+                Voltar para Home
+              </Link>
+            </Button>
+
+            {/* Info Text */}
+            <div className="bg-muted/50 p-4 rounded-lg text-sm text-muted-foreground">
+              <p>
+                Você será redirecionado para autenticar. Se não tiver uma conta, 
+                poderá criar uma durante o processo de autenticação.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Help Text */}
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          <p>Precisa de ajuda?</p>
+          <Link href="/" className="text-primary hover:underline">
+            Volte para a página inicial
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

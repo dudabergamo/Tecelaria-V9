@@ -19,8 +19,6 @@ import Profile from "@/pages/Profile";
 import MemoryDetail from "./pages/MemoryDetail";
 import EditMemory from "./pages/EditMemory";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import EmailConfirmation from "./pages/EmailConfirmation";
 import Callback from "./pages/Callback";
  
 function Router() {
@@ -29,8 +27,6 @@ function Router() {
       {/* Rotas públicas */}
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
-      <Route path="/email-confirmation" component={EmailConfirmation} />
       <Route path="/callback" component={Callback} />
 
       {/* Rotas protegidas */}
