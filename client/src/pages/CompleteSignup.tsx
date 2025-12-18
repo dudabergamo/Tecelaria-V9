@@ -25,10 +25,31 @@ export default function CompleteSignup() {
     howHeardAboutTecelaria: "",
   });
 
-  const updateProfile = trpc.auth.updateProfile.useMutation({
+  const login = trpc.auth.login.useMutation({
     onSuccess: () => {
-      toast.success("Cadastro completado! Bem-vindo à Tecelaria!");
+      // Limpar dados do localStorage
+      localStorage.removeItem('signupEmail');
+      localStorage.removeItem('signupPassword');
       setLocation("/onboarding");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao fazer login");
+    },
+  });
+
+  const updateProfile = trpc.auth.updateProfile.useMutation({
+    onSuccess: async () => {
+      toast.success("Cadastro completado! Bem-vindo à Tecelaria!");
+      // Fazer login automático
+      const storedPassword = localStorage.getItem('signupPassword');
+      if (email && storedPassword) {
+        await login.mutateAsync({
+          email: email,
+          password: storedPassword,
+        });
+      } else {
+        setLocation("/onboarding");
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao completar cadastro");
@@ -104,7 +125,7 @@ export default function CompleteSignup() {
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                   required
                 />
               </div>
@@ -118,7 +139,7 @@ export default function CompleteSignup() {
                   placeholder="Seu nome completo"
                   value={formData.name}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                   required
                 />
               </div>
@@ -132,7 +153,7 @@ export default function CompleteSignup() {
                   placeholder="000.000.000-00"
                   value={formData.cpf}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                 />
               </div>
 
@@ -145,7 +166,7 @@ export default function CompleteSignup() {
                   type="date"
                   value={formData.birthDate}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                 />
               </div>
 
@@ -158,7 +179,7 @@ export default function CompleteSignup() {
                   placeholder="Sua cidade"
                   value={formData.city}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                 />
               </div>
 
@@ -172,7 +193,7 @@ export default function CompleteSignup() {
                   maxLength="2"
                   value={formData.state}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                 />
               </div>
 
@@ -184,7 +205,7 @@ export default function CompleteSignup() {
                   name="howHeardAboutTecelaria"
                   value={formData.howHeardAboutTecelaria}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || login.isPending}
                   className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
                 >
                   <option value="">Selecione uma opção</option>
@@ -199,11 +220,11 @@ export default function CompleteSignup() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={updateProfile.isPending}
+                disabled={updateProfile.isPending || login.isPending}
                 size="lg"
                 className="w-full"
               >
-                {updateProfile.isPending ? (
+                {updateProfile.isPending || login.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Completando cadastro...

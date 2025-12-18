@@ -130,6 +130,15 @@ export const appRouter = router({
         return ctx.user;
       }),
 
+    me: publicProcedure
+      .query(async ({ ctx }) => {
+        console.log("[Auth] me called, user:", ctx.user?.email);
+        if (!ctx.user) {
+          return null;
+        }
+        return ctx.user;
+      }),
+
     logout: protectedProcedure
       .mutation(async ({ ctx }) => {
         console.log("[Auth] Logout for user:", ctx.user?.email);
