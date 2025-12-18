@@ -22,6 +22,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import EmailConfirmation from "./pages/EmailConfirmation";
 import Conclusion from "./pages/Conclusion";
+import CompleteSignup from "./pages/CompleteSignup";
 import Callback from "./pages/Callback";
  
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/email-confirmation" component={EmailConfirmation} />
+      <Route path="/complete-signup" component={CompleteSignup} />
       <Route path="/callback" component={Callback} />
 
       {/* Rotas protegidas */}

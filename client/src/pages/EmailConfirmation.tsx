@@ -15,8 +15,8 @@ export default function EmailConfirmation() {
 
   const confirmEmail = trpc.auth.confirmEmail.useMutation({
     onSuccess: () => {
-      toast.success("Email confirmado com sucesso! Você pode fazer login agora.");
-      setLocation("/login");
+      toast.success("Email confirmado! Agora complete seu cadastro.");
+      setLocation("/complete-signup");
     },
     onError: (error: any) => {
       toast.error(error.message || "Código inválido ou expirado");
