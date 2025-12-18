@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2/promise";
 import { 
@@ -80,11 +80,21 @@ export async function upsertUser(user: Partial<InsertUser>): Promise<void> {
   if (!db) throw new Error("Database not available");
 
   try {
-    const existingUser = await db
+    // Buscar usuário por openId OU email
+    let existingUser = await db
       .select()
       .from(users)
       .where(eq(users.openId, user.openId))
       .limit(1);
+
+    // Se não encontrar por openId, tenta por email
+    if (existingUser.length === 0 && user.email) {
+      existingUser = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, user.email))
+        .limit(1);
+    }
 
     if (existingUser.length > 0) {
       // Fazer UPDATE com apenas os campos fornecidos
@@ -101,15 +111,22 @@ export async function upsertUser(user: Partial<InsertUser>): Promise<void> {
       if (user.cpf !== undefined) updateData.cpf = user.cpf;
       if (user.birthDate !== undefined) updateData.birthDate = user.birthDate;
       if (user.howHeardAboutTecelaria !== undefined) updateData.howHeardAboutTecelaria = user.howHeardAboutTecelaria;
+      if (user.openId !== undefined) updateData.openId = user.openId;
       
+      // Usar o ID do usuário existente para fazer UPDATE
+      const existingUserId = existingUser[0].id;
       await db
         .update(users)
         .set(updateData)
-        .where(eq(users.openId, user.openId));
+        .where(eq(users.id, existingUserId));
     } else {
       // Fazer INSERT com todos os campos fornecidos
+      // Gerar ID se não fornecido
+      const userId = user.id || (await import("crypto")).randomUUID();
+      
       await db.insert(users).values({
         ...user,
+        id: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
       } as InsertUser);
