@@ -30,8 +30,22 @@ export async function authenticateAuth0Request(req: Request): Promise<User | nul
       return null;
     }
 
-    // Busca ou cria usuário no banco
+    const { users } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+
+    // Busca usuário por openId ou email
     let user = await getUserByOpenId(auth0Id);
+    
+    // Se não encontrar por openId, tenta por email
+    if (!user) {
+      console.log('[Auth0] User not found by openId, searching by email:', email);
+      const [userByEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      user = userByEmail || null;
+    }
 
     if (!user) {
       console.log('[Auth0] Creating new user:', email);
@@ -47,7 +61,8 @@ export async function authenticateAuth0Request(req: Request): Promise<User | nul
 
       user = await getUserByOpenId(auth0Id);
     } else {
-      // Atualiza último login
+      // Atualiza último login e openId
+      console.log('[Auth0] Updating existing user:', email);
       await upsertUser({
         openId: auth0Id,
         lastSignedIn: new Date(),
