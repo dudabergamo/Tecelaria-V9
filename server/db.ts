@@ -39,7 +39,7 @@ export async function getDb() {
         connectionLimit: 10,
         queueLimit: 0,
         enableKeepAlive: true,
-        keepAliveInitialDelayMs: 0,
+        ssl: true,
       });
       _db = drizzle(pool);
       console.log("[Database] Connection pool initialized successfully");
