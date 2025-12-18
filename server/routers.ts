@@ -142,21 +142,23 @@ export const appRouter = router({
       .input(z.object({
         email: z.string().email(),
         password: z.string().min(8),
-        name: z.string().optional(),
-        cpf: z.string().optional(),
-        birthDate: z.date().optional(),
-        address: z.string().optional(),
-        howHeardAboutTecelaria: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
         const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
         const bcrypt = await import("bcrypt");
         const crypto = await import("crypto");
 
-        const [existingUser] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        // Verificar se email já existe
+        const [existingUser] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+        
         if (existingUser) {
           throw new TRPCError({ code: "CONFLICT", message: "Email ja cadastrado" });
         }
@@ -170,11 +172,6 @@ export const appRouter = router({
           id: userId,
           email: input.email,
           password: hashedPassword,
-          name: input.name || "",
-          cpf: input.cpf,
-          birthDate: input.birthDate,
-          address: input.address,
-          howHeardAboutTecelaria: input.howHeardAboutTecelaria,
           emailConfirmed: false,
           emailConfirmationCode: confirmationCode,
           emailConfirmationCodeExpiresAt: confirmationCodeExpiresAt,
@@ -195,9 +192,22 @@ export const appRouter = router({
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
         const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
         const bcrypt = await import("bcrypt");
 
-        const [user] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        // Buscar apenas as colunas necessárias
+        const [user] = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            password: users.password,
+            emailConfirmed: users.emailConfirmed,
+            kitActivatedAt: users.kitActivatedAt,
+          })
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+
         if (!user || !user.password) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
         }
@@ -219,7 +229,37 @@ export const appRouter = router({
 
         ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
 
-        return { success: true, firstLogin: !user.kitActivatedAt, user };
+        return { success: true, firstLogin: !user.kitActivatedAt };
+      }),
+
+    completeSignup: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        cpf: z.string().optional(),
+        birthDate: z.date().optional(),
+        address: z.string().optional(),
+        howHeardAboutTecelaria: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+
+        await db
+          .update(users)
+          .set({
+            name: input.name,
+            cpf: input.cpf,
+            birthDate: input.birthDate,
+            address: input.address,
+            howHeardAboutTecelaria: input.howHeardAboutTecelaria,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, ctx.user.id));
+
+        return { success: true };
       }),
 
     confirmEmail: publicProcedure
