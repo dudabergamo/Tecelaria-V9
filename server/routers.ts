@@ -130,6 +130,60 @@ export const appRouter = router({
         console.log("[Auth] Logout for user:", ctx.user?.email);
         return { success: true };
       }),
+
+    confirmEmail: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        code: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+
+          console.log("[Auth] Confirming email for:", input.email);
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, input.email))
+            .limit(1);
+
+          if (!user) {
+            console.log("[Auth] User not found:", input.email);
+            throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+          }
+
+          if (user.emailConfirmationCode !== input.code) {
+            console.log("[Auth] Invalid confirmation code for:", input.email);
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Código de confirmação inválido" });
+          }
+
+          if (user.emailConfirmationCodeExpiresAt && user.emailConfirmationCodeExpiresAt < new Date()) {
+            console.log("[Auth] Confirmation code expired for:", input.email);
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Código de confirmação expirado" });
+          }
+
+          await db
+            .update(users)
+            .set({
+              emailConfirmed: true,
+              emailConfirmationCode: null,
+              emailConfirmationCodeExpiresAt: null,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, user.id));
+
+          console.log("[Auth] Email confirmed for:", input.email);
+          return { success: true };
+        } catch (error) {
+          console.error("[Auth] Confirm email error:", error);
+          throw error;
+        }
+      }),
   }),
 
   user: router({
