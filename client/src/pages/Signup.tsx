@@ -24,8 +24,12 @@ export default function Signup() {
   const signup = trpc.auth.signup.useMutation({
     onSuccess: () => {
       // Save email and password to localStorage for confirmation page
+      console.log("[Signup] Salvando email:", formData.email);
+      console.log("[Signup] Salvando senha:", formData.password ? "sim" : "não");
       localStorage.setItem('signupEmail', formData.email);
       localStorage.setItem('signupPassword', formData.password);
+      console.log("[Signup] Email armazenado:", localStorage.getItem('signupEmail'));
+      console.log("[Signup] Senha armazenada:", localStorage.getItem('signupPassword') ? "sim" : "não");
       toast.success("Cadastro realizado! Verifique seu email para confirmar.");
       setLocation("/email-confirmation");
     },
