@@ -1,22 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
-import { useUser } from "@/hooks/use-user";
 
 export default function Login() {
-  const { user, isLoading } = useUser();
-
-  useEffect(() => {
-    if (user && !isLoading) {
-      window.location.href = "/dashboard";
-    }
-  }, [user, isLoading]);
-
   const handleLogin = () => {
-    window.location.href = "/api/auth/login";
-  };
-
-  const handleSignup = () => {
-    // Auth0 usa o mesmo endpoint, mas você pode adicionar parâmetro
     window.location.href = "/api/auth/login";
   };
 
@@ -44,7 +29,6 @@ export default function Login() {
             size="lg" 
             className="w-full text-lg"
             onClick={handleLogin}
-            disabled={isLoading}
           >
             Fazer Login
           </Button>
@@ -53,8 +37,7 @@ export default function Login() {
             size="lg" 
             variant="outline"
             className="w-full text-lg"
-            onClick={handleSignup}
-            disabled={isLoading}
+            onClick={handleLogin}
           >
             Criar Conta
           </Button>
