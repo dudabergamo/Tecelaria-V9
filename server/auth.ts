@@ -5,18 +5,20 @@ import type { Express } from 'express';
 
 export function setupAuth(app: Express) {
   // Configurar sessão
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || 'fallback-secret-change-me',
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000, // 24 horas
-      },
-    })
-  );
-
+ app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'fallback-secret-change-me',
+    resave: false,
+    saveUninitialized: false,
+    proxy: true, // ← IMPORTANTE: Railway usa proxy
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      sameSite: 'lax', // ← IMPORTANTE: permite cookies cross-site
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
   // Configurar Passport
   passport.use(
     new Auth0Strategy(
