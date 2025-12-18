@@ -1,23 +1,17 @@
 import { useEffect } from "react";
-import { useAuth0 } from "@auth0/auth0-react";
 import { useLocation } from "wouter";
 
 export default function Callback() {
-  const { isLoading, error } = useAuth0();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (error) {
-      console.error("Auth0 error:", error);
-      setLocation("/");
-      return;
-    }
-
-    // Redirect to dashboard after successful login
+    // O servidor já fez o redirect, mas se por algum motivo
+    // o usuário chegar aqui, redirecionar para dashboard
+    // O AuthContext vai verificar se está autenticado
+    console.log('[Callback] Redirecionando para /dashboard');
     setLocation("/dashboard");
-  }, [isLoading, error, setLocation]);
+  }, [setLocation]);
+
 
   return (
     <div className="min-h-screen flex items-center justify-center">
