@@ -226,10 +226,18 @@ export const appRouter = router({
 
           // Fazer login do usuário
           console.log("[Auth] Auto-login successful for:", input.email);
-          ctx.req.login(user, (err) => {
-            if (err) {
-              console.error("[Auth] Error during auto-login:", err);
-            }
+          
+          // Promisificar ctx.req.login para esperar a conclusão
+          await new Promise<void>((resolve, reject) => {
+            ctx.req.login(user, (err) => {
+              if (err) {
+                console.error("[Auth] Error during auto-login:", err);
+                reject(err);
+              } else {
+                console.log("[Auth] Session created for:", input.email);
+                resolve();
+              }
+            });
           });
 
           return { success: true, userId: user.id };
