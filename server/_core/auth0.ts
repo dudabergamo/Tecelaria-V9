@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 import type { User } from '../../drizzle/schema';
-import { getDb, upsertUser, getUserByOpenId } from '../db';
+import { getDb, getUserByOpenId } from '../db';
 
 export async function authenticateAuth0Request(req: Request): Promise<User | null> {
   // Pega o usuário da sessão do Passport
@@ -50,23 +50,46 @@ export async function authenticateAuth0Request(req: Request): Promise<User | nul
     if (!user) {
       console.log('[Auth0] Creating new user:', email);
       
-      // Cria novo usuário
-      await upsertUser({
+      // Cria novo usuário com ID gerado
+      const { randomUUID } = await import('crypto');
+      const newUserId = randomUUID();
+      
+      await db.insert(users).values({
+        id: newUserId,
         openId: auth0Id,
         email: email,
         name: name,
         role: 'user',
         lastSignedIn: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
-      user = await getUserByOpenId(auth0Id);
+      user = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, newUserId))
+        .then(rows => rows[0] || null);
     } else {
       // Atualiza último login e openId
       console.log('[Auth0] Updating existing user:', email);
-      await upsertUser({
-        openId: auth0Id,
-        lastSignedIn: new Date(),
-      });
+      
+      await db
+        .update(users)
+        .set({
+          openId: auth0Id,
+          lastSignedIn: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id));
+      
+      // Refetch user
+      const [updatedUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      user = updatedUser || null;
     }
 
     return user || null;
