@@ -76,9 +76,9 @@ app.use((req, res, next) => {
     failureMessage: true 
   }),
   (req, res) => {
-    console.log('[Auth] Login successful! Redirecting to /memories');
+    console.log('[Auth] Login successful! Redirecting to /dashboard');
     console.log('[Auth] User:', req.user);
-    res.redirect('/memories');
+    res.redirect('/dashboard');
   }
 );
   app.get('/api/auth/logout', (req, res) => {
