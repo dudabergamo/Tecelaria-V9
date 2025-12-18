@@ -832,7 +832,105 @@ export const appRouter = router({
         await activateKit(input.kitId);
         return { success: true };
       }),
+   }),
+
+  memory: router({
+    list: protectedProcedure
+      .input(z.object({
+        userId: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { memories } = await import("../drizzle/schema");
+        const result = await db
+          .select()
+          .from(memories)
+          .where(eq(memories.userId, input.userId))
+          .orderBy((t) => t.createdAt);
+
+        return result;
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        category: z.string().optional(),
+        userId: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { memories } = await import("../drizzle/schema");
+        const crypto = await import("crypto");
+
+        const id = crypto.randomUUID();
+        const now = new Date();
+
+        await db.insert(memories).values({
+          id,
+          userId: input.userId,
+          title: input.title,
+          category: input.category,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        return { id, title: input.title, category: input.category, createdAt: now };
+      }),
+
+    addRecord: protectedProcedure
+      .input(z.object({
+        memoryId: z.string(),
+        type: z.enum(["text", "audio", "image", "document"]),
+        content: z.string().optional(),
+        fileUrl: z.string().optional(),
+        audioOriginal: z.string().optional(),
+        audioTranscription: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { memoryRecords } = await import("../drizzle/schema");
+        const crypto = await import("crypto");
+
+        const id = crypto.randomUUID();
+        const now = new Date();
+
+        await db.insert(memoryRecords).values({
+          id,
+          memoryId: input.memoryId,
+          type: input.type,
+          content: input.content,
+          fileUrl: input.fileUrl,
+          audioOriginal: input.audioOriginal,
+          audioTranscription: input.audioTranscription,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        return { id, type: input.type, createdAt: now };
+      }),
+
+    getCategories: protectedProcedure
+      .input(z.object({
+        userId: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { categories } = await import("../drizzle/schema");
+        const result = await db
+          .select()
+          .from(categories)
+          .where(eq(categories.userId, input.userId));
+
+        return result;
+      }),
   }),
 });
-
 export type AppRouter = typeof appRouter;
