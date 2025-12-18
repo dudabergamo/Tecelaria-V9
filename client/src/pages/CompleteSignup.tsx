@@ -10,7 +10,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function CompleteSignup() {
   const [, setLocation] = useLocation();
-  const [email] = useState(() => {
+  const [email, setEmail] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('signupEmail') || '';
     }
@@ -51,9 +51,8 @@ export default function CompleteSignup() {
       return;
     }
 
-    if (!email) {
-      toast.error("Email não encontrado. Por favor, faça signup novamente.");
-      setLocation("/signup");
+    if (!email.trim()) {
+      toast.error("Digite seu email");
       return;
     }
 
@@ -95,6 +94,21 @@ export default function CompleteSignup() {
         <Card className="border-2">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={updateProfile.isPending}
+                  required
+                />
+              </div>
+
               {/* Nome */}
               <div className="space-y-2">
                 <Label htmlFor="name">Nome Completo *</Label>
