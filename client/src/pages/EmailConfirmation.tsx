@@ -39,15 +39,15 @@ export default function EmailConfirmation() {
       return;
     }
 
+    if (!email.trim()) {
+      toast.error("Digite seu email");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      if (!email) {
-        toast.error("Email não encontrado. Por favor, faça signup novamente.");
-        setLocation("/signup");
-        return;
-      }
       await confirmEmail.mutateAsync({
-        email: email,
+        email: email.trim(),
         code: code.trim(),
       });
     } finally {
@@ -78,6 +78,18 @@ export default function EmailConfirmation() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="code">Código de Confirmação</Label>
               <Input
