@@ -111,7 +111,9 @@ export const appRouter = router({
           }
 
           console.log("[Auth] Login successful for:", input.email);
-          return { success: true, userId: user.id };
+          // Check if user has completed profile (has name set)
+          const firstLogin = !user.name || user.name === '';
+          return { success: true, userId: user.id, firstLogin };
         } catch (error) {
           console.error("[Auth] Login error:", error);
           throw error;

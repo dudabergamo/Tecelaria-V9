@@ -28,7 +28,7 @@ export default function CompleteSignup() {
   const updateProfile = trpc.auth.updateProfile.useMutation({
     onSuccess: () => {
       toast.success("Cadastro completado! Bem-vindo à Tecelaria!");
-      setLocation("/onboarding");
+      setLocation("/dashboard");
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao completar cadastro");

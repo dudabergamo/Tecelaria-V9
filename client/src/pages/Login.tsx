@@ -18,8 +18,8 @@ export default function Login() {
   const login = trpc.auth.login.useMutation({
     onSuccess: (data) => {
       if (data.firstLogin) {
-        toast.success("Login realizado! Bem-vindo ao onboarding.");
-        setLocation("/onboarding");
+        toast.success("Login realizado! Complete seu cadastro.");
+        setLocation("/complete-signup");
       } else {
         toast.success("Bem-vindo de volta!");
         setLocation("/dashboard");
