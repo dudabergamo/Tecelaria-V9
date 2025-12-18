@@ -1,6 +1,7 @@
-import { router, publicProcedure, protectedProcedure } from "./trpc";
+import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { getDb } from "./db";
 
 export const appRouter = router({
   auth: router({
@@ -162,7 +163,7 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().optional(),
         cpf: z.string().optional(),
-        birthDate: z.string().optional(),
+        birthDate: z.date().optional(),
         address: z.string().optional(),
         phone: z.string().optional(),
         cep: z.string().optional(),
@@ -223,14 +224,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-
-// Helper function to get database connection
-async function getDb() {
-  try {
-    const { db } = await import("../drizzle/db");
-    return db;
-  } catch (error) {
-    console.error("[DB] Failed to get database connection:", error);
-    return null;
-  }
-}
