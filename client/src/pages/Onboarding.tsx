@@ -167,16 +167,11 @@ export default function Onboarding() {
             size="lg" 
             className="text-lg px-12 py-6 rounded-xl"
             onClick={handleActivate}
-            disabled={activateKit.isPending}
           >
-            {activateKit.isPending ? (
-              "Ativando..."
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-5 w-5" />
-                Começar Minha Jornada
-              </>
-            )}
+            <>
+              <Sparkles className="mr-2 h-5 w-5" />
+              Começar Minha Jornada
+            </>
           </Button>
         </div>
       </div>
