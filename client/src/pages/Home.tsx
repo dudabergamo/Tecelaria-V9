@@ -26,16 +26,7 @@ export default function Home() {
       }
     }
   }, [isAuthenticated]);
-  const testLogin = trpc.auth.testLogin.useMutation({
-    onSuccess: () => {
-      toast.success("Login de teste realizado!");
-      // Reload to update auth state
-      window.location.href = "/onboarding";
-    },
-    onError: () => {
-      toast.error("Erro ao fazer login de teste");
-    },
-  });
+  // Removed test login - no longer needed
 
   return (
     <div className="min-h-screen">
@@ -81,19 +72,10 @@ export default function Home() {
               ) : (
                 <>
                   <Button asChild size="lg" className="text-lg px-8 py-6 rounded-xl">
-             <a href="/login">
+                    <a href="/login">
                       <Sparkles className="mr-2 h-5 w-5" />
                       Começar Agora
                     </a>
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    size="lg" 
-                    className="text-lg px-8 py-6 rounded-xl"
-                    onClick={() => testLogin.mutate()}
-                    disabled={testLogin.isPending}
-                  >
-                    {testLogin.isPending ? "Entrando..." : "Login de Teste"}
                   </Button>
                   <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6 rounded-xl">
                     <a href="#como-funciona">
