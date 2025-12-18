@@ -25,16 +25,16 @@ export default function CompleteSignup() {
     howHeardAboutTecelaria: "",
   });
 
-  const login = trpc.auth.login.useMutation({
+  const autoLogin = trpc.auth.autoLogin.useMutation({
     onSuccess: () => {
-      console.log("[CompleteSignup] Login automático bem-sucedido");
+      console.log("[CompleteSignup] Auto-login bem-sucedido");
       // Limpar dados do localStorage
       localStorage.removeItem('signupEmail');
       localStorage.removeItem('signupPassword');
       setLocation("/onboarding");
     },
     onError: (error: any) => {
-      console.error("[CompleteSignup] Erro no login automático:", error);
+      console.error("[CompleteSignup] Erro no auto-login:", error);
       toast.error(error.message || "Erro ao fazer login");
     },
   });
@@ -43,20 +43,11 @@ export default function CompleteSignup() {
     onSuccess: async () => {
       console.log("[CompleteSignup] Perfil atualizado com sucesso");
       toast.success("Cadastro completado! Bem-vindo à Tecelaria!");
-      // Fazer login automático
-      const storedPassword = localStorage.getItem('signupPassword');
-      console.log("[CompleteSignup] Email:", email);
-      console.log("[CompleteSignup] Senha armazenada:", storedPassword ? "sim" : "não");
-      if (email && storedPassword) {
-        console.log("[CompleteSignup] Iniciando login automático...");
-        await login.mutateAsync({
-          email: email,
-          password: storedPassword,
-        });
-      } else {
-        console.log("[CompleteSignup] Email ou senha não encontrados, redirecionando para onboarding");
-        setLocation("/onboarding");
-      }
+      // Fazer auto-login
+      console.log("[CompleteSignup] Iniciando auto-login para:", email);
+      await autoLogin.mutateAsync({
+        email: email,
+      });
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao completar cadastro");
@@ -132,7 +123,7 @@ export default function CompleteSignup() {
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                   required
                 />
               </div>
@@ -146,7 +137,7 @@ export default function CompleteSignup() {
                   placeholder="Seu nome completo"
                   value={formData.name}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                   required
                 />
               </div>
@@ -160,7 +151,7 @@ export default function CompleteSignup() {
                   placeholder="000.000.000-00"
                   value={formData.cpf}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                 />
               </div>
 
@@ -173,7 +164,7 @@ export default function CompleteSignup() {
                   type="date"
                   value={formData.birthDate}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                 />
               </div>
 
@@ -186,7 +177,7 @@ export default function CompleteSignup() {
                   placeholder="Sua cidade"
                   value={formData.city}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                 />
               </div>
 
@@ -200,7 +191,7 @@ export default function CompleteSignup() {
                   maxLength="2"
                   value={formData.state}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                 />
               </div>
 
@@ -212,7 +203,7 @@ export default function CompleteSignup() {
                   name="howHeardAboutTecelaria"
                   value={formData.howHeardAboutTecelaria}
                   onChange={handleChange}
-                  disabled={updateProfile.isPending || login.isPending}
+                  disabled={updateProfile.isPending || autoLogin.isPending}
                   className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
                 >
                   <option value="">Selecione uma opção</option>
@@ -227,11 +218,11 @@ export default function CompleteSignup() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={updateProfile.isPending || login.isPending}
+                disabled={updateProfile.isPending || autoLogin.isPending}
                 size="lg"
                 className="w-full"
               >
-                {updateProfile.isPending || login.isPending ? (
+                {updateProfile.isPending || autoLogin.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Completando cadastro...

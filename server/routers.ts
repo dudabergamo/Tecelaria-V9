@@ -199,6 +199,46 @@ export const appRouter = router({
         }
       }),
 
+    autoLogin: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+
+          console.log("[Auth] Auto-login attempt for email:", input.email);
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, input.email))
+            .limit(1);
+
+          if (!user) {
+            console.log("[Auth] User not found:", input.email);
+            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
+          }
+
+          // Fazer login do usuário
+          console.log("[Auth] Auto-login successful for:", input.email);
+          ctx.req.login(user, (err) => {
+            if (err) {
+              console.error("[Auth] Error during auto-login:", err);
+            }
+          });
+
+          return { success: true, userId: user.id };
+        } catch (error) {
+          console.error("[Auth] Auto-login error:", error);
+          throw error;
+        }
+      }),
+
     updateProfile: publicProcedure
       .input(z.object({
         email: z.string().email(),
