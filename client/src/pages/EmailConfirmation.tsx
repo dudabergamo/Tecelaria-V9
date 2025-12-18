@@ -14,8 +14,11 @@ export default function EmailConfirmation() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState(() => {
     // Get email from URL params or localStorage
-    const params = new URLSearchParams(window.location.search);
-    return params.get('email') || localStorage.getItem('signupEmail') || '';
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('email') || localStorage.getItem('signupEmail') || '';
+    }
+    return '';
   });
 
   const confirmEmail = trpc.auth.confirmEmail.useMutation({
