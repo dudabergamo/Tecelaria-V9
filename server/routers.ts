@@ -8,6 +8,11 @@ export const appRouter = router({
       .input(z.object({
         email: z.string().email(),
         password: z.string().min(8),
+        name: z.string().optional(),
+        cpf: z.string().optional(),
+        birthDate: z.date().optional(),
+        address: z.string().optional(),
+        howHeardAboutTecelaria: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -44,6 +49,11 @@ export const appRouter = router({
             id: userId,
             email: input.email,
             password: hashedPassword,
+            name: input.name,
+            cpf: input.cpf,
+            birthDate: input.birthDate,
+            address: input.address,
+            howHeardAboutTecelaria: input.howHeardAboutTecelaria,
             emailConfirmed: false,
             emailConfirmationCode: confirmationCode,
             emailConfirmationCodeExpiresAt: confirmationCodeExpiresAt,
