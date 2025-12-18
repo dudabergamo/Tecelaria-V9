@@ -13,6 +13,7 @@ export default function Login() {
   const [view, setView] = useState<"options" | "signin" | "signup" | "forgot">("options");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
 
   const login = trpc.auth.login.useMutation({
     onSuccess: (data) => {
@@ -26,6 +27,17 @@ export default function Login() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Email ou senha incorretos");
+    },
+  });
+
+  const forgotPassword = trpc.auth.forgotPassword.useMutation({
+    onSuccess: () => {
+      toast.success("Instrucoes enviadas para seu email!");
+      setForgotEmail("");
+      setView("signin");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao enviar instrucoes");
     },
   });
 

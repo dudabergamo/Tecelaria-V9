@@ -138,8 +138,142 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Auth0 OAuth endpoints are handled in auth.ts
-    // Email/password authentication is no longer used
+    signup: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+        name: z.string().optional(),
+        cpf: z.string().optional(),
+        birthDate: z.date().optional(),
+        address: z.string().optional(),
+        howHeardAboutTecelaria: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const bcrypt = await import("bcrypt");
+        const crypto = await import("crypto");
+
+        const [existingUser] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (existingUser) {
+          throw new TRPCError({ code: "CONFLICT", message: "Email ja cadastrado" });
+        }
+
+        const hashedPassword = await bcrypt.hash(input.password, 10);
+        const confirmationCode = crypto.randomBytes(3).toString("hex").toUpperCase();
+        const confirmationCodeExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        const userId = crypto.randomUUID();
+        await db.insert(users).values({
+          id: userId,
+          email: input.email,
+          password: hashedPassword,
+          name: input.name || "",
+          cpf: input.cpf,
+          birthDate: input.birthDate,
+          address: input.address,
+          howHeardAboutTecelaria: input.howHeardAboutTecelaria,
+          emailConfirmed: false,
+          emailConfirmationCode: confirmationCode,
+          emailConfirmationCodeExpiresAt: confirmationCodeExpiresAt,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        return { success: true, userId };
+      }),
+
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const bcrypt = await import("bcrypt");
+
+        const [user] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (!user || !user.password) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
+        }
+
+        const isPasswordValid = await bcrypt.compare(input.password, user.password);
+        if (!isPasswordValid) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
+        }
+
+        if (!user.emailConfirmed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Email nao confirmado" });
+        }
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        const sessionToken = await new SignJWT({ userId: user.id })
+          .setProtectedHeader({ alg: "HS256" })
+          .setExpirationTime("7d")
+          .sign(new TextEncoder().encode(ENV.SESSION_SECRET));
+
+        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+
+        return { success: true, firstLogin: !user.kitActivatedAt, user };
+      }),
+
+    confirmEmail: publicProcedure
+      .input(z.object({ code: z.string() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const [user] = await db.select().from(users).where(eq(users.emailConfirmationCode, input.code)).limit(1);
+        if (!user) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Codigo invalido" });
+        }
+
+        if (user.emailConfirmationCodeExpiresAt && user.emailConfirmationCodeExpiresAt < new Date()) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Codigo expirado" });
+        }
+
+        await db.update(users).set({
+          emailConfirmed: true,
+          emailConfirmationCode: null,
+          emailConfirmationCodeExpiresAt: null,
+          updatedAt: new Date(),
+        }).where(eq(users.id, user.id));
+
+        return { success: true };
+      }),
+
+    forgotPassword: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const crypto = await import("crypto");
+
+        const [user] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (!user) {
+          return { success: true };
+        }
+
+        const resetCode = crypto.randomBytes(3).toString("hex").toUpperCase();
+        const resetCodeExpiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
+
+        await db.update(users).set({
+          emailConfirmationCode: resetCode,
+          emailConfirmationCodeExpiresAt: resetCodeExpiresAt,
+          updatedAt: new Date(),
+        }).where(eq(users.id, user.id));
+
+        return { success: true };
+      }),
+
   }),
 
   user: router({
