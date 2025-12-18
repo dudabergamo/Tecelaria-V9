@@ -12,10 +12,14 @@ export default function Onboarding() {
   const activateKit = trpc.user.activateKit.useMutation({
     onSuccess: () => {
       toast.success("Kit ativado com sucesso! Bem-vindo à Tecelaria!");
-      setLocation("/dashboard");
+      // Refresh user data
+      setTimeout(() => {
+        setLocation("/dashboard");
+      }, 500);
     },
     onError: (error: any) => {
-      toast.error("Erro ao ativar kit: " + error.message);
+      console.error("Erro ao ativar kit:", error);
+      toast.error(error.message || "Erro ao ativar kit");
     },
   });
 
@@ -27,6 +31,10 @@ export default function Onboarding() {
   }, [user, setLocation]);
 
   const handleActivate = () => {
+    if (!user?.id) {
+      toast.error("Usuário não identificado");
+      return;
+    }
     activateKit.mutate();
   };
 

@@ -138,6 +138,183 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    signup: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+        name: z.string(),
+        cpf: z.string(),
+        birthDate: z.date(),
+        address: z.string(),
+        howHeardAboutTecelaria: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const bcrypt = await import("bcrypt");
+
+        // Check if user already exists
+        const existingUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+
+        if (existingUser.length > 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Email já cadastrado" });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(input.password, 10);
+
+        // Generate confirmation code
+        const confirmationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        // Create user
+        const result = await db
+          .insert(users)
+          .values({
+            email: input.email,
+            password: hashedPassword,
+            name: input.name,
+            cpf: input.cpf,
+            birthDate: input.birthDate,
+            address: input.address,
+            howHeardAboutTecelaria: input.howHeardAboutTecelaria,
+            emailConfirmed: false,
+            emailConfirmationCode: confirmationCode,
+            emailConfirmationCodeExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        // TODO: Send confirmation email with code
+        // For now, just log it
+        console.log(`Confirmation code for ${input.email}: ${confirmationCode}`);
+
+        return { success: true, message: "Cadastro realizado. Verifique seu email para confirmar." };
+      }),
+
+    confirmEmail: publicProcedure
+      .input(z.object({
+        code: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+
+        // Find user with confirmation code
+        const user = await db
+          .select()
+          .from(users)
+          .where(eq(users.emailConfirmationCode, input.code))
+          .limit(1);
+
+        if (user.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Código inválido" });
+        }
+
+        const userData = user[0];
+
+        // Check if code is expired
+        if (userData.emailConfirmationCodeExpiresAt && new Date() > userData.emailConfirmationCodeExpiresAt) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Código expirado" });
+        }
+
+        // Update user
+        await db
+          .update(users)
+          .set({
+            emailConfirmed: true,
+            emailConfirmationCode: null,
+            emailConfirmationCodeExpiresAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userData.id));
+
+        return { success: true, message: "Email confirmado com sucesso!" };
+      }),
+
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        const { users } = await import("../drizzle/schema");
+        const bcrypt = await import("bcrypt");
+
+        // Find user
+        const user = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+
+        if (user.length === 0) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
+        }
+
+        const userData = user[0];
+
+        // Check if email is confirmed
+        if (!userData.emailConfirmed) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Email não confirmado. Verifique seu email." });
+        }
+
+        // Verify password
+        if (!userData.password) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
+        }
+
+        const isValidPassword = await bcrypt.compare(input.password, userData.password);
+        if (!isValidPassword) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha incorretos" });
+        }
+
+        // Create JWT token
+        const secret = new TextEncoder().encode(ENV.cookieSecret);
+        const token = await new SignJWT({
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          kitActivatedAt: userData.kitActivatedAt,
+        })
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("7d")
+          .sign(secret);
+
+        // Set cookie
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        });
+
+        // Check if it's first login
+        const firstLogin = !userData.kitActivatedAt;
+
+        return {
+          success: true,
+          firstLogin,
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            kitActivatedAt: userData.kitActivatedAt,
+          },
+        };
+      }),
+
     // Temporary test login for development
     testLogin: publicProcedure.mutation(async ({ ctx }) => {
       const { upsertUser } = await import("./db");
