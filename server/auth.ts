@@ -44,7 +44,10 @@ export function setupAuth(app: Express) {
 
   app.use(passport.initialize());
   app.use(passport.session());
-
+app.use((req, res, next) => {
+  console.log('[Auth] Request:', req.path, 'User:', req.user ? 'logged in' : 'anonymous');
+  next();
+});
   // Rotas de autenticação
   app.get('/api/auth/login', passport.authenticate('auth0', {
     scope: 'openid email profile',
