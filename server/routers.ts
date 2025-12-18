@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDb } from "./db";
 
+// Force redeploy
 export const appRouter = router({
   auth: router({
     signup: publicProcedure
