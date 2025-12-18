@@ -300,6 +300,20 @@ export const appRouter = router({
           throw error;
         }
       }),
+
+    me: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          console.log("[Auth] me query called for user:", ctx.user?.id);
+          if (!ctx.user) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+          }
+          return ctx.user;
+        } catch (error) {
+          console.error("[Auth] me query error:", error);
+          throw error;
+        }
+      }),
   }),
 
   user: router({
