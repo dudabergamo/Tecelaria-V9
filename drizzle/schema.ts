@@ -13,7 +13,8 @@ export const users = mysqlTable("users", {
   
   // Tecelaria specific fields
   phone: varchar("phone", { length: 20 }),
-  address: varchar("address", { length: 500 }),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 2 }),
   cep: varchar("cep", { length: 10 }),
   cpf: varchar("cpf", { length: 20 }),
   identityDocument: varchar("identityDocument", { length: 50 }),

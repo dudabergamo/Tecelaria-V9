@@ -12,7 +12,8 @@ export const appRouter = router({
         name: z.string().optional(),
         cpf: z.string().optional(),
         birthDate: z.date().optional(),
-        address: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
         howHeardAboutTecelaria: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
@@ -53,7 +54,8 @@ export const appRouter = router({
             name: input.name,
             cpf: input.cpf,
             birthDate: input.birthDate,
-            address: input.address,
+            city: input.city,
+            state: input.state,
             howHeardAboutTecelaria: input.howHeardAboutTecelaria,
             emailConfirmed: false,
             emailConfirmationCode: confirmationCode,
@@ -142,7 +144,7 @@ export const appRouter = router({
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
           const { users } = await import("../drizzle/schema");
-          const { eq, and } = await import("drizzle-orm");
+          const { eq } = await import("drizzle-orm");
 
           console.log("[Auth] Confirming email for:", input.email);
 
@@ -154,17 +156,17 @@ export const appRouter = router({
 
           if (!user) {
             console.log("[Auth] User not found:", input.email);
-            throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
           }
 
           if (user.emailConfirmationCode !== input.code) {
             console.log("[Auth] Invalid confirmation code for:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Código de confirmação inválido" });
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo de confirmacao invalido" });
           }
 
           if (user.emailConfirmationCodeExpiresAt && user.emailConfirmationCodeExpiresAt < new Date()) {
             console.log("[Auth] Confirmation code expired for:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Código de confirmação expirado" });
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo de confirmacao expirado" });
           }
 
           await db
@@ -181,6 +183,60 @@ export const appRouter = router({
           return { success: true };
         } catch (error) {
           console.error("[Auth] Confirm email error:", error);
+          throw error;
+        }
+      }),
+
+    updateProfile: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        name: z.string().optional(),
+        cpf: z.string().optional(),
+        birthDate: z.date().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        phone: z.string().optional(),
+        howHeardAboutTecelaria: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+
+          console.log("[Auth] Updating profile for:", input.email);
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, input.email))
+            .limit(1);
+
+          if (!user) {
+            console.log("[Auth] User not found:", input.email);
+            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
+          }
+
+          await db
+            .update(users)
+            .set({
+              name: input.name || user.name,
+              cpf: input.cpf || user.cpf,
+              birthDate: input.birthDate || user.birthDate,
+              city: input.city || user.city,
+              state: input.state || user.state,
+              phone: input.phone || user.phone,
+              howHeardAboutTecelaria: input.howHeardAboutTecelaria || user.howHeardAboutTecelaria,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, user.id));
+
+          console.log("[Auth] Profile updated for:", input.email);
+          return { success: true, userId: user.id };
+        } catch (error) {
+          console.error("[Auth] Update profile error:", error);
           throw error;
         }
       }),
@@ -203,74 +259,12 @@ export const appRouter = router({
             .limit(1);
 
           if (!user) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
           }
 
           return user;
         } catch (error) {
-          console.error("[User] getProfile error:", error);
-          throw error;
-        }
-      }),
-
-    updateProfile: protectedProcedure
-      .input(z.object({
-        name: z.string().optional(),
-        cpf: z.string().optional(),
-        birthDate: z.date().optional(),
-        address: z.string().optional(),
-        phone: z.string().optional(),
-        cep: z.string().optional(),
-        identityDocument: z.string().optional(),
-        profilePictureUrl: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[User] Updating profile for:", ctx.user!.id);
-
-          await db
-            .update(users)
-            .set({
-              ...input,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, ctx.user!.id));
-
-          return { success: true };
-        } catch (error) {
-          console.error("[User] updateProfile error:", error);
-          throw error;
-        }
-      }),
-
-    activateKit: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[User] Activating kit for:", ctx.user!.id);
-
-          await db
-            .update(users)
-            .set({
-              kitActivatedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, ctx.user!.id));
-
-          return { success: true };
-        } catch (error) {
-          console.error("[User] activateKit error:", error);
+          console.error("[User] Get profile error:", error);
           throw error;
         }
       }),
