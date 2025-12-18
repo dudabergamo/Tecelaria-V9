@@ -10,11 +10,18 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function CompleteSignup() {
   const [, setLocation] = useLocation();
+  const [email] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('signupEmail') || '';
+    }
+    return '';
+  });
   const [formData, setFormData] = useState({
     name: "",
     cpf: "",
     birthDate: "",
-    address: "",
+    city: "",
+    state: "",
     howHeardAboutTecelaria: "",
   });
 
@@ -44,12 +51,21 @@ export default function CompleteSignup() {
       return;
     }
 
+    if (!email) {
+      toast.error("Email não encontrado. Por favor, faça signup novamente.");
+      setLocation("/signup");
+      return;
+    }
+
     try {
       await updateProfile.mutateAsync({
+        email: email,
         name: formData.name,
         cpf: formData.cpf,
-        birthDate: formData.birthDate,
-        address: formData.address,
+        birthDate: formData.birthDate ? new Date(formData.birthDate) : undefined,
+        city: formData.city,
+        state: formData.state,
+        howHeardAboutTecelaria: formData.howHeardAboutTecelaria,
       });
     } catch (error) {
       // Erro já tratado
@@ -119,14 +135,28 @@ export default function CompleteSignup() {
                 />
               </div>
 
-              {/* Endereço */}
+              {/* Cidade */}
               <div className="space-y-2">
-                <Label htmlFor="address">Endereço</Label>
+                <Label htmlFor="city">Cidade</Label>
                 <Input
-                  id="address"
-                  name="address"
-                  placeholder="Rua, número, cidade"
-                  value={formData.address}
+                  id="city"
+                  name="city"
+                  placeholder="Sua cidade"
+                  value={formData.city}
+                  onChange={handleChange}
+                  disabled={updateProfile.isPending}
+                />
+              </div>
+
+              {/* Estado */}
+              <div className="space-y-2">
+                <Label htmlFor="state">Estado</Label>
+                <Input
+                  id="state"
+                  name="state"
+                  placeholder="UF"
+                  maxLength="2"
+                  value={formData.state}
                   onChange={handleChange}
                   disabled={updateProfile.isPending}
                 />
