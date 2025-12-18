@@ -27,27 +27,34 @@ export default function CompleteSignup() {
 
   const login = trpc.auth.login.useMutation({
     onSuccess: () => {
+      console.log("[CompleteSignup] Login automático bem-sucedido");
       // Limpar dados do localStorage
       localStorage.removeItem('signupEmail');
       localStorage.removeItem('signupPassword');
       setLocation("/onboarding");
     },
     onError: (error: any) => {
+      console.error("[CompleteSignup] Erro no login automático:", error);
       toast.error(error.message || "Erro ao fazer login");
     },
   });
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
     onSuccess: async () => {
+      console.log("[CompleteSignup] Perfil atualizado com sucesso");
       toast.success("Cadastro completado! Bem-vindo à Tecelaria!");
       // Fazer login automático
       const storedPassword = localStorage.getItem('signupPassword');
+      console.log("[CompleteSignup] Email:", email);
+      console.log("[CompleteSignup] Senha armazenada:", storedPassword ? "sim" : "não");
       if (email && storedPassword) {
+        console.log("[CompleteSignup] Iniciando login automático...");
         await login.mutateAsync({
           email: email,
           password: storedPassword,
         });
       } else {
+        console.log("[CompleteSignup] Email ou senha não encontrados, redirecionando para onboarding");
         setLocation("/onboarding");
       }
     },
