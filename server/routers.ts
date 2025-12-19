@@ -202,11 +202,11 @@ export const appRouter = router({
     updateProfile: publicProcedure
       .input(z.object({
         email: z.string().email(),
-        name: z.string(),
-        cpf: z.string(),
-        birthDate: z.date(),
-        city: z.string(),
-        state: z.string(),
+        name: z.string().optional(),
+        cpf: z.string().optional(),
+        birthDate: z.date().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
         phone: z.string().optional(),
         howHeardAboutTecelaria: z.string().optional(),
       }))
@@ -230,18 +230,21 @@ export const appRouter = router({
             throw new TRPCError({ code: "NOT_FOUND", message: "Email não encontrado. Por favor, faça signup novamente." });
           }
 
+          const updateData: any = {
+            updatedAt: new Date(),
+          };
+          
+          if (input.name !== undefined) updateData.name = input.name;
+          if (input.cpf !== undefined) updateData.cpf = input.cpf;
+          if (input.birthDate !== undefined) updateData.birthDate = input.birthDate;
+          if (input.city !== undefined) updateData.city = input.city;
+          if (input.state !== undefined) updateData.state = input.state;
+          if (input.phone !== undefined) updateData.phone = input.phone;
+          if (input.howHeardAboutTecelaria !== undefined) updateData.howHeardAboutTecelaria = input.howHeardAboutTecelaria;
+          
           await db
             .update(users)
-            .set({
-              name: input.name,
-              cpf: input.cpf,
-              birthDate: input.birthDate,
-              city: input.city,
-              state: input.state,
-              phone: input.phone || "",
-              howHeardAboutTecelaria: input.howHeardAboutTecelaria || "",
-              updatedAt: new Date(),
-            })
+            .set(updateData)
             .where(eq(users.id, user.id));
 
           console.log("[Auth] Profile updated for:", input.email);
