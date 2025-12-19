@@ -327,6 +327,139 @@ export const appRouter = router({
       }),
   }),
 
+  memory: router({
+    getCategories: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { memoryCategories } = await import("../drizzle/schema");
+          const { asc } = await import("drizzle-orm");
+
+          console.log("[Memory] Getting categories for user:", ctx.user!.id);
+
+          const categories = await db
+            .select()
+            .from(memoryCategories)
+            .orderBy(asc(memoryCategories.order));
+
+          return categories;
+        } catch (error) {
+          console.error("[Memory] Get categories error:", error);
+          throw error;
+        }
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        categoryId: z.string(),
+        summary: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { memories } = await import("../drizzle/schema");
+          const { randomUUID } = await import("crypto");
+
+          console.log("[Memory] Creating memory for user:", ctx.user!.id);
+
+          const memoryId = randomUUID();
+
+          await db.insert(memories).values({
+            id: memoryId,
+            userId: ctx.user!.id,
+            categoryId: input.categoryId,
+            title: input.title,
+            summary: input.summary || "",
+            processed: false,
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          console.log("[Memory] Memory created:", memoryId);
+          return { success: true, memoryId };
+        } catch (error) {
+          console.error("[Memory] Create memory error:", error);
+          throw error;
+        }
+      }),
+
+    addRecord: protectedProcedure
+      .input(z.object({
+        memoryId: z.string(),
+        type: z.enum(["audio", "text", "document", "photo"]),
+        content: z.string().optional(),
+        fileUrl: z.string().optional(),
+        fileKey: z.string().optional(),
+        fileName: z.string().optional(),
+        fileSize: z.number().optional(),
+        mimeType: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { memoryRecords } = await import("../drizzle/schema");
+          const { randomUUID } = await import("crypto");
+
+          console.log("[Memory] Adding record to memory:", input.memoryId);
+
+          const recordId = randomUUID();
+
+          await db.insert(memoryRecords).values({
+            id: recordId,
+            memoryId: input.memoryId,
+            userId: ctx.user!.id,
+            type: input.type,
+            content: input.content || "",
+            fileUrl: input.fileUrl,
+            fileKey: input.fileKey,
+            fileName: input.fileName,
+            fileSize: input.fileSize,
+            mimeType: input.mimeType,
+            order: 0,
+            addedAt: new Date(),
+          });
+
+          console.log("[Memory] Record added:", recordId);
+          return { success: true, recordId };
+        } catch (error) {
+          console.error("[Memory] Add record error:", error);
+          throw error;
+        }
+      }),
+
+    getMemories: protectedProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { memories } = await import("../drizzle/schema");
+          const { eq, desc } = await import("drizzle-orm");
+
+          console.log("[Memory] Getting memories for user:", ctx.user!.id);
+
+          const userMemories = await db
+            .select()
+            .from(memories)
+            .where(eq(memories.userId, ctx.user!.id))
+            .orderBy(desc(memories.createdAt));
+
+          return userMemories;
+        } catch (error) {
+          console.error("[Memory] Get memories error:", error);
+          throw error;
+        }
+      }),
+  }),
+
   user: router({
     getProfile: protectedProcedure
       .query(async ({ ctx }) => {
