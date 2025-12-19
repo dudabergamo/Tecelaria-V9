@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+'''import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +20,12 @@ import { useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
 
 export default function RegisterMemory() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const utils = trpc.useContext();
 
   const [activeTab, setActiveTab] = useState("text");
   const [isRecording, setIsRecording] = useState(false);
@@ -40,21 +42,8 @@ export default function RegisterMemory() {
 
   const { data: categories } = trpc.memory.getCategories.useQuery();
 
-  const createMemory = trpc.memory.create.useMutation({
-    onSuccess: () => {
-      toast.success("Memória registrada com sucesso!");
-      setLocation("/dashboard");
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Erro ao registrar memória");
-    },
-  });
-
-  const addRecord = trpc.memory.addRecord.useMutation({
-    onError: (error: any) => {
-      toast.error(error.message || "Erro ao adicionar conteúdo");
-    },
-  });
+  const createMemory = trpc.memory.create.useMutation();
+  const addRecord = trpc.memory.addRecord.useMutation();
 
   const handleStartRecording = async () => {
     try {
@@ -89,12 +78,29 @@ export default function RegisterMemory() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setSelectedFiles(Array.from(e.target.files));
+      setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files)]);
     }
   };
 
   const handleRemoveFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFile = async (file: File, memoryId: string) => {
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("userId", user.id);
+    formData.append("memoryId", memoryId);
+
+    const response = await axios.post("/api/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    return response.data.url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,11 +111,12 @@ export default function RegisterMemory() {
       return;
     }
 
-    if (
-      !textContent.trim() &&
-      selectedFiles.length === 0 &&
-      !recordedAudio
-    ) {
+    if (!category) {
+      toast.error("Selecione uma categoria");
+      return;
+    }
+
+    if (!textContent.trim() && selectedFiles.length === 0 && !recordedAudio) {
       toast.error("Adicione pelo menos um conteúdo (texto, áudio ou arquivo)");
       return;
     }
@@ -117,49 +124,42 @@ export default function RegisterMemory() {
     setIsSubmitting(true);
 
     try {
-      // Create memory
-      if (!category) {
-        toast.error("Selecione uma categoria");
-        setIsSubmitting(false);
-        return;
-      }
-
       const memoryResult = await createMemory.mutateAsync({
         title,
         categoryId: category,
       });
 
-      // Add text record if present
+      const memoryId = memoryResult.memoryId;
+
+      // Add text record
       if (textContent.trim()) {
         await addRecord.mutateAsync({
-          memoryId: memoryResult.memoryId,
+          memoryId,
           type: "text",
           content: textContent,
         });
       }
 
-      // Add audio record if present
+      // Add audio record
       if (recordedAudio) {
-        // TODO: Upload audio to storage and get URL
-        // For now, we'll just save the blob reference
-        const audioUrl = URL.createObjectURL(recordedAudio);
+        const audioFile = new File([recordedAudio], "audio_gravado.webm", { type: "audio/webm" });
+        const fileUrl = await uploadFile(audioFile, memoryId);
         await addRecord.mutateAsync({
-          memoryId: memoryResult.memoryId,
+          memoryId,
           type: "audio",
-          fileUrl: audioUrl,
+          fileUrl,
           fileName: "audio_gravado.webm",
           mimeType: "audio/webm",
         });
       }
 
-      // Add file records if present
+      // Add file records
       for (const file of selectedFiles) {
-        // TODO: Upload files to storage and get URLs
-        const fileUrl = URL.createObjectURL(file);
-        const type = file.type.startsWith("image/") ? "image" : "document";
+        const fileUrl = await uploadFile(file, memoryId);
+        const type = file.type.startsWith("image/") ? "photo" : "document";
 
         await addRecord.mutateAsync({
-          memoryId: memoryResult.memoryId,
+          memoryId,
           type: type as "photo" | "document",
           fileUrl,
           fileName: file.name,
@@ -169,7 +169,12 @@ export default function RegisterMemory() {
       }
 
       toast.success("Memória registrada com sucesso!");
-      setLocation("/dashboard");
+      // Reset form state
+      setTitle("");
+      setTextContent("");
+      setSelectedFiles([]);
+      setRecordedAudio(null);
+      utils.memory.getMemories.invalidate();
     } catch (error: any) {
       toast.error(error.message || "Erro ao registrar memória");
     } finally {
@@ -217,7 +222,7 @@ export default function RegisterMemory() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category">Categoria (opcional)</Label>
+                <Label htmlFor="category">Categoria *</Label>
                 <select
                   id="category"
                   value={category}
@@ -287,7 +292,7 @@ export default function RegisterMemory() {
                         className="w-full"
                       >
                         <Mic className="mr-2 h-4 w-4" />
-                        {isRecording ? "Parar Gravação" : "Iniciar Gravação"}
+                        {isRecording ? "Parar Gravação..." : "Iniciar Gravação"}
                       </Button>
                     ) : (
                       <div className="space-y-4">
@@ -314,101 +319,129 @@ export default function RegisterMemory() {
                   </div>
                 </TabsContent>
 
-                {/* Image Tab */}
-                <TabsContent value="image" className="space-y-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      fileInputRef.current?.click()
-                    }
-                    disabled={isSubmitting}
-                    size="lg"
-                    className="w-full"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Selecionar Imagens
-                  </Button>
-                </TabsContent>
-
-                {/* Files Tab */}
-                <TabsContent value="files" className="space-y-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      fileInputRef.current?.click()
-                    }
-                    disabled={isSubmitting}
-                    size="lg"
-                    className="w-full"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Selecionar Arquivos
-                  </Button>
-                </TabsContent>
-              </Tabs>
-
-              {/* Selected Files */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium">Arquivos selecionados:</p>
-                  {selectedFiles.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-muted rounded"
-                    >
-                      <span className="text-sm">{file.name}</span>
+                {/* Image & Files Tab */}
+                <TabsContent value="image">
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center">
+                      <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                      <p className="mt-4 text-muted-foreground">
+                        Arraste e solte imagens ou clique para selecionar
+                      </p>
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveFile(index)}
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => fileInputRef.current?.click()}
                       >
-                        <X className="h-4 w-4" />
+                        Selecionar Imagens
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {selectedFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-medium">Arquivos selecionados:</p>
+                        <ul className="space-y-2">
+                          {selectedFiles.map((file, index) => (
+                            <li
+                              key={index}
+                              className="flex items-center justify-between bg-muted p-2 rounded-md"
+                            >
+                              <span className="truncate text-sm">{file.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFile(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="files">
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center">
+                      <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                      <p className="mt-4 text-muted-foreground">
+                        Arraste e solte documentos ou clique para selecionar
+                      </p>
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.txt"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Selecionar Documentos
+                      </Button>
+                    </div>
+                    {selectedFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-medium">Arquivos selecionados:</p>
+                        <ul className="space-y-2">
+                          {selectedFiles.map((file, index) => (
+                            <li
+                              key={index}
+                              className="flex items-center justify-between bg-muted p-2 rounded-md"
+                            >
+                              <span className="truncate text-sm">{file.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFile(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
           {/* Submit Button */}
-          <Button
-            type="submit"
-            disabled={isSubmitting || createMemory.isPending}
-            size="lg"
-            className="w-full"
-          >
-            {isSubmitting || createMemory.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Registrar Memória
-              </>
-            )}
-          </Button>
+          <div className="flex justify-end">
+            <Button type="submit" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Registrar Memória
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </main>
     </div>
   );
 }
+'''

@@ -7,6 +7,7 @@ import { setupAuth } from "../auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import uploadRouter from "../upload";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -46,6 +47,9 @@ async function startServer() {
       createContext,
     })
   );
+
+  // Upload API
+  app.use("/api/upload", uploadRouter);
 
   // Vite or static files
   if (process.env.NODE_ENV === "development") {
