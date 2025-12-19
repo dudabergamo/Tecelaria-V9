@@ -112,9 +112,22 @@ export const appRouter = router({
           }
 
           console.log("[Auth] Login successful for:", input.email);
-          // Check if user has completed profile (has name set)
-          const firstLogin = !user.name || user.name === '';
-          return { success: true, userId: user.id, firstLogin };
+          // Check if user has completed profile (has kitActivatedAt set)
+          const firstLogin = !user.kitActivatedAt;
+          console.log("[Auth] First login:", firstLogin, "kitActivatedAt:", user.kitActivatedAt);
+          
+          // Criar sessão do Passport
+          return new Promise((resolve, reject) => {
+            (ctx.req as any).login({ id: user.id }, (err: any) => {
+              if (err) {
+                console.error("[Auth] Error creating session:", err);
+                reject(err);
+              } else {
+                console.log("[Auth] Session created for:", input.email);
+                resolve({ success: true, userId: user.id, firstLogin });
+              }
+            });
+          });
         } catch (error) {
           console.error("[Auth] Login error:", error);
           throw error;
