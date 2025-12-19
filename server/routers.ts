@@ -342,6 +342,35 @@ export const appRouter = router({
           throw error;
         }
       }),
+
+    activateKit: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+
+          console.log("[User] Activating kit for user:", ctx.user!.id);
+
+          // Atualizar o usuário para marcar que o kit foi ativado
+          await db
+            .update(users)
+            .set({
+              kitActivatedAt: new Date(),
+              memoryPeriodEndDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 dias
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, ctx.user!.id));
+
+          console.log("[User] Kit activated for user:", ctx.user!.id);
+          return { success: true, message: "Kit ativado com sucesso!" };
+        } catch (error) {
+          console.error("[User] Activate kit error:", error);
+          throw error;
+        }
+      }),
   }),
 });
 
