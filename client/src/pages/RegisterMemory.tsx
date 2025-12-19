@@ -38,10 +38,7 @@ export default function RegisterMemory() {
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: categories } = trpc.memory.getCategories.useQuery(
-    { userId: user?.id || "" },
-    { enabled: !!user?.id }
-  );
+  const { data: categories } = trpc.memory.getCategories.useQuery();
 
   const createMemory = trpc.memory.create.useMutation({
     onSuccess: () => {
@@ -121,16 +118,21 @@ export default function RegisterMemory() {
 
     try {
       // Create memory
+      if (!category) {
+        toast.error("Selecione uma categoria");
+        setIsSubmitting(false);
+        return;
+      }
+
       const memoryResult = await createMemory.mutateAsync({
         title,
-        category: category || undefined,
-        userId: user?.id || "",
+        categoryId: category,
       });
 
       // Add text record if present
       if (textContent.trim()) {
         await addRecord.mutateAsync({
-          memoryId: memoryResult.id,
+          memoryId: memoryResult.memoryId,
           type: "text",
           content: textContent,
         });
@@ -142,10 +144,11 @@ export default function RegisterMemory() {
         // For now, we'll just save the blob reference
         const audioUrl = URL.createObjectURL(recordedAudio);
         await addRecord.mutateAsync({
-          memoryId: memoryResult.id,
+          memoryId: memoryResult.memoryId,
           type: "audio",
-          audioOriginal: audioUrl,
-          audioTranscription: "[Áudio será transcrito em breve]",
+          fileUrl: audioUrl,
+          fileName: "audio_gravado.webm",
+          mimeType: "audio/webm",
         });
       }
 
@@ -156,9 +159,12 @@ export default function RegisterMemory() {
         const type = file.type.startsWith("image/") ? "image" : "document";
 
         await addRecord.mutateAsync({
-          memoryId: memoryResult.id,
-          type,
+          memoryId: memoryResult.memoryId,
+          type: type as "photo" | "document",
           fileUrl,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
         });
       }
 
