@@ -1,9 +1,8 @@
 import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb, getUserByOpenId } from "./db";
 
-// Force redeploy
 export const appRouter = router({
   auth: router({
     signup: publicProcedure
@@ -13,8 +12,7 @@ export const appRouter = router({
         name: z.string().optional(),
         cpf: z.string().optional(),
         birthDate: z.date().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
+        address: z.string().optional(),
         howHeardAboutTecelaria: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
@@ -25,47 +23,42 @@ export const appRouter = router({
           const { users } = await import("../drizzle/schema");
           const { eq } = await import("drizzle-orm");
           const bcrypt = await import("bcrypt");
-          const crypto = await import("crypto");
+          const { randomUUID } = await import("crypto");
 
           console.log("[Auth] Signup attempt for email:", input.email);
 
-          // Verificar se email já existe
+          // Verificar se usuário já existe
           const [existingUser] = await db
             .select({ id: users.id })
             .from(users)
             .where(eq(users.email, input.email))
             .limit(1);
-          
+
           if (existingUser) {
-            console.log("[Auth] Email already exists:", input.email);
             throw new TRPCError({ code: "CONFLICT", message: "Email ja cadastrado" });
           }
 
+          const userId = randomUUID();
           const hashedPassword = await bcrypt.hash(input.password, 10);
-          const confirmationCode = crypto.randomBytes(3).toString("hex").toUpperCase();
-          const confirmationCodeExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          const emailConfirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-          const userId = crypto.randomUUID();
-          console.log("[Auth] Creating user with ID:", userId);
-          
           await db.insert(users).values({
             id: userId,
             email: input.email,
             password: hashedPassword,
-            name: input.name,
-            cpf: input.cpf,
-            birthDate: input.birthDate,
-            city: input.city,
-            state: input.state,
-            howHeardAboutTecelaria: input.howHeardAboutTecelaria,
+            name: input.name || "",
+            cpf: input.cpf || "",
+            birthDate: input.birthDate || null,
             emailConfirmed: false,
-            emailConfirmationCode: confirmationCode,
-            emailConfirmationCodeExpiresAt: confirmationCodeExpiresAt,
+            emailConfirmationCode: emailConfirmationCode,
+            emailConfirmationCodeExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
             createdAt: new Date(),
             updatedAt: new Date(),
           });
 
+          console.log("[Auth] Creating user with ID:", userId);
           console.log("[Auth] User created successfully:", userId);
+
           return { success: true, userId };
         } catch (error) {
           console.error("[Auth] Signup error:", error);
@@ -78,7 +71,7 @@ export const appRouter = router({
         email: z.string().email(),
         password: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           const db = await getDb();
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
@@ -112,19 +105,16 @@ export const appRouter = router({
           }
 
           console.log("[Auth] Login successful for:", input.email);
-          // Check if user has completed profile (has kitActivatedAt set)
-          const firstLogin = !user.kitActivatedAt;
-          console.log("[Auth] First login:", firstLogin, "kitActivatedAt:", user.kitActivatedAt);
           
           // Criar sessão do Passport
           return new Promise((resolve, reject) => {
-            (ctx.req as any).login({ id: user.id }, (err: any) => {
+            ctx.req.login({ id: user.id }, (err: any) => {
               if (err) {
                 console.error("[Auth] Error creating session:", err);
                 reject(err);
               } else {
                 console.log("[Auth] Session created for:", input.email);
-                resolve({ success: true, userId: user.id, firstLogin });
+                resolve({ success: true, userId: user.id });
               }
             });
           });
@@ -180,18 +170,15 @@ export const appRouter = router({
             .limit(1);
 
           if (!user) {
-            console.log("[Auth] User not found:", input.email);
             throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
           }
 
           if (user.emailConfirmationCode !== input.code) {
-            console.log("[Auth] Invalid confirmation code for:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo de confirmacao invalido" });
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo invalido" });
           }
 
           if (user.emailConfirmationCodeExpiresAt && user.emailConfirmationCodeExpiresAt < new Date()) {
-            console.log("[Auth] Confirmation code expired for:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo de confirmacao expirado" });
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo expirado" });
           }
 
           await db
@@ -208,6 +195,59 @@ export const appRouter = router({
           return { success: true };
         } catch (error) {
           console.error("[Auth] Confirm email error:", error);
+          throw error;
+        }
+      }),
+
+    updateProfile: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        name: z.string(),
+        cpf: z.string(),
+        birthDate: z.date(),
+        city: z.string(),
+        state: z.string(),
+        phone: z.string().optional(),
+        howHeardAboutTecelaria: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+
+          console.log("[Auth] Updating profile for:", input.email);
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, input.email))
+            .limit(1);
+
+          if (!user) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Email não encontrado. Por favor, faça signup novamente." });
+          }
+
+          await db
+            .update(users)
+            .set({
+              name: input.name,
+              cpf: input.cpf,
+              birthDate: input.birthDate,
+              city: input.city,
+              state: input.state,
+              phone: input.phone || "",
+              howHeardAboutTecelaria: input.howHeardAboutTecelaria || "",
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, user.id));
+
+          console.log("[Auth] Profile updated for:", input.email);
+          return { success: true, userId: user.id };
+        } catch (error) {
+          console.error("[Auth] Update profile error:", error);
           throw error;
         }
       }),
@@ -233,83 +273,38 @@ export const appRouter = router({
             .limit(1);
 
           if (!user) {
-            console.log("[Auth] User not found:", input.email);
             throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
           }
 
-          // Fazer login do usuário
           console.log("[Auth] Auto-login successful for:", input.email);
-          
-          // Promisificar ctx.req.login para esperar a conclusão
-          await new Promise<void>((resolve, reject) => {
-            ctx.req.login(user, (err) => {
+
+          return new Promise((resolve, reject) => {
+            ctx.req.login({ id: user.id }, (err: any) => {
               if (err) {
                 console.error("[Auth] Error during auto-login:", err);
                 reject(err);
               } else {
                 console.log("[Auth] Session created for:", input.email);
-                resolve();
+                resolve({ success: true, userId: user.id });
               }
             });
           });
-
-          return { success: true, userId: user.id };
         } catch (error) {
           console.error("[Auth] Auto-login error:", error);
           throw error;
         }
       }),
 
-    updateProfile: publicProcedure
+    forgotPassword: publicProcedure
       .input(z.object({
         email: z.string().email(),
-        name: z.string().optional(),
-        cpf: z.string().optional(),
-        birthDate: z.date().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
-        phone: z.string().optional(),
-        howHeardAboutTecelaria: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[Auth] Updating profile for:", input.email);
-
-          const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (!user) {
-            console.log("[Auth] User not found:", input.email);
-            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
-          }
-
-          await db
-            .update(users)
-            .set({
-              name: input.name || user.name,
-              cpf: input.cpf || user.cpf,
-              birthDate: input.birthDate || user.birthDate,
-              city: input.city || user.city,
-              state: input.state || user.state,
-              phone: input.phone || user.phone,
-              howHeardAboutTecelaria: input.howHeardAboutTecelaria || user.howHeardAboutTecelaria,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, user.id));
-
-          console.log("[Auth] Profile updated for:", input.email);
-          return { success: true, userId: user.id };
+          console.log("[Auth] Forgot password for:", input.email);
+          return { success: true };
         } catch (error) {
-          console.error("[Auth] Update profile error:", error);
+          console.error("[Auth] Forgot password error:", error);
           throw error;
         }
       }),

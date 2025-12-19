@@ -16,14 +16,9 @@ export default function Login() {
   const [forgotEmail, setForgotEmail] = useState("");
 
   const login = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      if (data.firstLogin) {
-        toast.success("Login realizado! Complete seu cadastro.");
-        setLocation("/complete-signup");
-      } else {
-        toast.success("Bem-vindo de volta!");
-        setLocation("/dashboard");
-      }
+    onSuccess: () => {
+      toast.success("Bem-vindo de volta!");
+      setLocation("/dashboard");
     },
     onError: (error: any) => {
       toast.error(error.message || "Email ou senha incorretos");
