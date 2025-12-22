@@ -6,19 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Loader2, LogIn, UserPlus } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const { refetchAuth } = useAuth();
   const [view, setView] = useState<"options" | "signin" | "signup" | "forgot">("options");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
 
   const login = trpc.auth.login.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Bem-vindo de volta!");
-      setLocation("/dashboard");
+      await refetchAuth();
+      window.location.href = "/dashboard";
     },
     onError: (error: any) => {
       toast.error(error.message || "Email ou senha incorretos");
