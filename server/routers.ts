@@ -422,6 +422,59 @@ export const appRouter = router({
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch memories" });
         }
       }),
+
+    getMemoryById: protectedProcedure
+      .input(z.object({ memoryId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { memories, memoryRecords, memoryCategories } = await import('../drizzle/schema');
+          const { eq, and } = await import('drizzle-orm');
+
+          // Get memory details
+          const [memory] = await db
+            .select({
+              id: memories.id,
+              title: memories.title,
+              summary: memories.summary,
+              categoryId: memories.categoryId,
+              categoryName: memoryCategories.name,
+              themes: memories.themes,
+              peopleMentioned: memories.peopleMentioned,
+              periodMentioned: memories.periodMentioned,
+              createdAt: memories.createdAt,
+              userId: memories.userId,
+            })
+            .from(memories)
+            .leftJoin(memoryCategories, eq(memories.categoryId, memoryCategories.id))
+            .where(and(
+              eq(memories.id, input.memoryId),
+              eq(memories.userId, ctx.user!.id)
+            ))
+            .limit(1);
+
+          if (!memory) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Memória não encontrada" });
+          }
+
+          // Get memory records
+          const records = await db
+            .select()
+            .from(memoryRecords)
+            .where(eq(memoryRecords.memoryId, input.memoryId));
+
+          return {
+            ...memory,
+            records,
+          };
+        } catch (error) {
+          console.error("Error fetching memory by ID:", error);
+          if (error instanceof TRPCError) throw error;
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch memory" });
+        }
+      }),
   }),
 
   user: router({
