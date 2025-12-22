@@ -19,8 +19,8 @@ import { toast } from "sonner";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user, loading } = useAuth();
-  const { data: memories, isLoading: memoriesLoading } = trpc.memory.list.useQuery(
-    { userId: user?.id || "" },
+  const { data: memories, isLoading: memoriesLoading } = trpc.memory.getMemories.useQuery(
+    undefined,
     { enabled: !!user?.id }
   );
 

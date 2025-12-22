@@ -222,8 +222,8 @@ export default function MemoriesTimeline() {
   const [selectedPerson, setSelectedPerson] = useState<string>("all");
   const [selectedTheme, setSelectedTheme] = useState<string>("all");
 
-  const { data: categories } = trpc.memories.getCategories.useQuery();
-  const { data: memoriesData, isLoading } = trpc.memories.getUserMemoriesWithDetails.useQuery();
+  const { data: categories } = trpc.memory.getCategories.useQuery();
+  const { data: memoriesData, isLoading } = trpc.memory.getMemories.useQuery();
 
   if (loading || isLoading) {
     return (

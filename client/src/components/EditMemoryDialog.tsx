@@ -54,14 +54,13 @@ export function EditMemoryDialog({
   const [newPerson, setNewPerson] = useState("");
   const [newTheme, setNewTheme] = useState("");
 
-  const { data: categories } = trpc.memories.getCategories.useQuery();
+  const { data: categories } = trpc.memory.getCategories.useQuery();
   const utils = trpc.useUtils();
 
-  const updateMutation = trpc.memories.updateMemory.useMutation({
+  const updateMutation = trpc.memory.updateMemory.useMutation({
     onSuccess: () => {
       toast.success("Memória atualizada com sucesso!");
-      utils.memories.getUserMemoriesWithDetails.invalidate();
-      utils.memories.list.invalidate();
+      utils.memory.getMemories.invalidate();
       onOpenChange(false);
       onSuccess?.();
     },
