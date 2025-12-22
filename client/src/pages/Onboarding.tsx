@@ -5,17 +5,17 @@ import { BookOpen, Calendar, Heart, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
+  const { refetchAuth } = useAuth();
   const activateKit = trpc.user.activateKit.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Kit ativado com sucesso! Bem-vindo à Tecelaria!");
-      // Refresh user data
-      setTimeout(() => {
-        setLocation("/dashboard");
-      }, 500);
+      await refetchAuth();
+      window.location.href = "/dashboard";
     },
     onError: (error: any) => {
       console.error("Erro ao ativar kit:", error);
