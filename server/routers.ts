@@ -423,6 +423,41 @@ export const appRouter = router({
         }
       }),
   }),
+
+  user: router({
+    activateKit: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+          const { users } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+
+          console.log("[User] Activating kit for user:", ctx.user!.id);
+
+          const now = new Date();
+          const programEndDate = new Date(now);
+          programEndDate.setDate(programEndDate.getDate() + 90);
+
+          await db
+            .update(users)
+            .set({
+              kitActivatedAt: now,
+              programEndDate: programEndDate,
+              updatedAt: now,
+            })
+            .where(eq(users.id, ctx.user!.id));
+
+          console.log("[User] Kit activated successfully for user:", ctx.user!.id);
+
+          return { success: true };
+        } catch (error) {
+          console.error("[User] Error activating kit:", error);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to activate kit" });
+        }
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
