@@ -27,15 +27,14 @@ export default function MemoryDetail() {
   const [, setLocation] = useLocation();
   const memoryId = params?.id ? parseInt(params.id) : null;
 
-  const { data: memory, isLoading } = trpc.memories.getById.useQuery(
-    { id: memoryId! },
-    { enabled: !!memoryId }
-  );
-  
-  const { data: records, isLoading: recordsLoading } = trpc.memories.getRecords.useQuery(
+  const { data: memoryData, isLoading } = trpc.memory.getMemoryById.useQuery(
     { memoryId: memoryId! },
     { enabled: !!memoryId }
   );
+  
+  const memory = memoryData;
+  const records = memoryData?.records || [];
+  const recordsLoading = isLoading;
   
   const deleteMutation = trpc.memories.deleteMemory.useMutation({
     onSuccess: () => {

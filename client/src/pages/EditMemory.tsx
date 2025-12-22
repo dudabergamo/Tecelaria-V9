@@ -15,8 +15,8 @@ export default function EditMemory() {
   const [, setLocation] = useLocation();
   const memoryId = params.id ? parseInt(params.id) : undefined;
 
-  const { data: memory, isLoading } = trpc.memories.getById.useQuery(
-    { id: memoryId! },
+  const { data: memory, isLoading } = trpc.memory.getMemoryById.useQuery(
+    { memoryId: memoryId! },
     { enabled: !!memoryId }
   );
 
