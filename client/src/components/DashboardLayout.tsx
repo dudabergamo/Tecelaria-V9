@@ -169,16 +169,11 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <a 
-                  href="/" 
-                  className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
-                >
-                  <img 
-                    src="/images/logo-transparent.png" 
-                    alt="Tecelaria" 
-                    className="h-20 w-auto cursor-pointer"
-                  />
-                </a>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold tracking-tight truncate">
+                    Navigation
+                  </span>
+                </div>
               ) : null}
             </div>
           </SidebarHeader>

@@ -52,11 +52,12 @@ function MemoryCard({ memory }: MemoryCardProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   // Fetch memory records (including audio files)
-  const { data: records } = trpc.memories.getRecords.useQuery(
+  const { data: records } = trpc.memories.getMemoryRecords.useQuery(
     { memoryId: memory.id },
     { enabled: expanded }
   );
-  const audioRecords = records?.filter((r: any) => r.recordType === "audio") || [];
+  
+  const audioRecords = records?.filter(r => r.type === 'audio' && r.fileUrl) || [];
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -89,14 +90,13 @@ function MemoryCard({ memory }: MemoryCardProps) {
                 <Calendar className="h-4 w-4" />
                 {new Date(memory.createdAt).toLocaleDateString("pt-BR")}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {memory.recordTypes.map((type, idx) => (
-                  <Badge key={idx} variant="secondary" className="flex items-center gap-1 text-xs">
+                  <span key={idx} className="flex items-center">
                     {getTypeIcon(type)}
-                    <span className="capitalize">{type === 'audio' ? 'Áudio' : type === 'text' ? 'Texto' : type === 'photo' ? 'Foto' : 'Documento'}</span>
-                  </Badge>
+                  </span>
                 ))}
-                <span className="text-xs">({memory.recordCount} registro{memory.recordCount > 1 ? 's' : ''})</span>
+                <span className="ml-1">{memory.recordCount} registro(s)</span>
               </div>
             </div>
           </div>
@@ -170,7 +170,7 @@ function MemoryCard({ memory }: MemoryCardProps) {
                 <FileAudio className="h-4 w-4" />
                 Áudios da Memória:
               </div>
-              {audioRecords.map((record: any, idx: number) => (
+              {audioRecords.map((record, idx) => (
                 <AudioPlayer
                   key={record.id}
                   src={record.fileUrl!}
@@ -222,8 +222,8 @@ export default function MemoriesTimeline() {
   const [selectedPerson, setSelectedPerson] = useState<string>("all");
   const [selectedTheme, setSelectedTheme] = useState<string>("all");
 
-  const { data: categories } = trpc.memory.getCategories.useQuery();
-  const { data: memoriesData, isLoading } = trpc.memory.getMemories.useQuery();
+  const { data: categories } = trpc.memories.getCategories.useQuery();
+  const { data: memoriesData, isLoading } = trpc.memories.getUserMemoriesWithDetails.useQuery();
 
   if (loading || isLoading) {
     return (
@@ -286,12 +286,10 @@ export default function MemoriesTimeline() {
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="hover:opacity-80 transition-opacity">
-              <img 
-                src="/images/logo-transparent.png" 
-                alt="Tecelaria" 
-                className="h-8 w-auto"
-              />
+            <Link href="/dashboard">
+              <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                Tecelaria
+              </h1>
             </Link>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild>
@@ -455,12 +453,8 @@ export default function MemoriesTimeline() {
               <div className="space-y-6">
                 {filteredMemories.map((memory: any, idx: number) => (
                   <div key={memory.id} className="relative md:pl-16">
-                    {/* Timeline Marker - Quadradinho/Cantoneira */}
-                    <img 
-                      src="/images/quadradinho.png" 
-                      alt="" 
-                      className="absolute left-3.5 top-6 w-4 h-4 hidden md:block"
-                    />
+                    {/* Timeline Dot */}
+                    <div className="absolute left-4 top-6 w-4 h-4 rounded-full bg-primary border-4 border-background hidden md:block"></div>
 
                     <MemoryCard memory={memory} />
                   </div>

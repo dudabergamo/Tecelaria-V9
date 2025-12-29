@@ -11,8 +11,6 @@ interface CountdownTimerProps {
   totalDays: number;
   onExtend?: () => void;
   showExtendButton?: boolean;
-  notStartedMessage?: string;
-  startAfterDays?: number;
 }
 
 export function CountdownTimer({
@@ -23,13 +21,8 @@ export function CountdownTimer({
   totalDays,
   onExtend,
   showExtendButton = false,
-  notStartedMessage,
-  startAfterDays,
 }: CountdownTimerProps) {
   const now = new Date();
-  const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const hasNotStarted = startAfterDays !== undefined && daysSinceStart < startAfterDays;
-  
   const timeRemaining = endDate.getTime() - now.getTime();
   const daysRemaining = Math.max(0, Math.ceil(timeRemaining / (1000 * 60 * 60 * 24)));
   const progress = Math.max(0, Math.min(100, ((totalDays - daysRemaining) / totalDays) * 100));
@@ -51,31 +44,6 @@ export function CountdownTimer({
 
   const isExpired = daysRemaining === 0;
   const isNearExpiry = daysRemaining <= 7 && daysRemaining > 0;
-
-  // Se o prazo ainda não iniciou, mostrar mensagem especial
-  if (hasNotStarted && notStartedMessage) {
-    return (
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-1">
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {title}
-            </h3>
-            <p className="text-sm text-muted-foreground">{description}</p>
-          </div>
-          <div className="bg-muted/50 border border-border rounded-lg p-4 text-center">
-            <p className="text-lg font-medium text-muted-foreground">
-              {notStartedMessage}
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Inicia no dia {startAfterDays} do programa
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className={`${isNearExpiry ? "border-yellow-500 border-2" : ""} ${isExpired ? "border-red-500 border-2" : ""}`}>

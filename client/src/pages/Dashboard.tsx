@@ -1,34 +1,27 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { CountdownTimer } from "@/components/CountdownTimer";
 import { trpc } from "@/lib/trpc";
-import {
-  BookOpen,
-  LogOut,
-  Plus,
+import { 
+  BookOpen, 
+  Calendar, 
+  Clock, 
+  FileAudio, 
+  Image as ImageIcon, 
+  Lightbulb, 
+  Plus, 
   Sparkles,
-  Users,
-  Settings,
-  Clock,
+  Users
 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user, loading } = useAuth();
-  const { data: memories, isLoading: memoriesLoading } = trpc.memory.getMemories.useQuery(
-    undefined,
-    { enabled: !!user?.id }
-  );
-
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      window.location.href = "/";
-    },
-  });
+  const { data: dashboardData, isLoading } = trpc.user.getDashboardData.useQuery();
 
   useEffect(() => {
     // Redirect to onboarding if kit not activated
@@ -37,9 +30,9 @@ export default function Dashboard() {
     }
   }, [user, setLocation]);
 
-  if (loading || memoriesLoading) {
+  if (loading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Carregando seu espaço...</p>
@@ -48,49 +41,36 @@ export default function Dashboard() {
     );
   }
 
-  if (!user) {
+  if (!dashboardData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Erro ao carregar usuário</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Erro ao carregar dados</p>
       </div>
     );
   }
 
-  // Calculate days remaining
-  let daysRemaining = 90;
-  let programDay = 0;
-  if (user.kitActivatedAt && user.programEndDate) {
-    const now = new Date();
-    const endDate = new Date(user.programEndDate);
-    const startDate = new Date(user.kitActivatedAt);
-
-    const diffTime = endDate.getTime() - now.getTime();
-    daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-
-    const elapsedTime = now.getTime() - startDate.getTime();
-    programDay = Math.floor(elapsedTime / (1000 * 60 * 60 * 24));
-  }
-
+  const { daysRemaining, programDay, stats, inspiration, memories } = dashboardData;
   const progressPercentage = Math.min(100, (programDay / 90) * 100);
-  const memoriesCount = memories?.length || 0;
+  const canGeneratePreview = programDay >= 80;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
+      <header className="border-b bg-card">
+        <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="hover:opacity-80 transition-opacity">
-              <img
-                src="/images/logo-transparent.png"
-                alt="Tecelaria"
-                className="h-10 w-auto"
-              />
+            <Link href="/">
+              <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                Tecelaria
+              </h1>
             </Link>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Olá, <span className="font-semibold text-foreground">{user.name?.split(" ")[0]}</span>
-              </span>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                Olá, <span className="font-semibold text-foreground">{user?.name?.split(' ')[0]}</span>
+              </p>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/minhas-memorias">Minhas Memórias</Link>
+              </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link href="/gerenciar-kit">
                   <Users className="mr-2 h-4 w-4" />
@@ -98,171 +78,270 @@ export default function Dashboard() {
                 </Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/perfil">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Perfil
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => logoutMutation.mutate()}
-                disabled={logoutMutation.isPending}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sair
+                <Link href="/perfil">Perfil</Link>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Bem-vindo de volta!</h1>
+      <div className="container py-8 space-y-8">
+        {/* Welcome Message */}
+        <div className="space-y-2">
+          <h2 className="text-3xl font-bold">Seu Espaço de Memórias</h2>
           <p className="text-muted-foreground">
-            Você está no dia {programDay} de 90 da sua jornada na Tecelaria
+            Bem-vindo de volta! Continue registrando suas histórias.
           </p>
         </div>
 
-        {/* Progress Section */}
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          {/* Days Remaining */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Dias Restantes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{daysRemaining}</div>
-              <p className="text-xs text-muted-foreground mt-1">de 90 dias</p>
-            </CardContent>
-          </Card>
-
-          {/* Memories Count */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Memórias Registradas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{memoriesCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">histórias guardadas</p>
-            </CardContent>
-          </Card>
-
-          {/* Progress */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Progresso
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{Math.round(progressPercentage)}%</div>
-              <Progress value={progressPercentage} className="mt-2" />
-            </CardContent>
-          </Card>
+        {/* Countdown Timers */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {user?.memoryPeriodEndDate && (
+            <CountdownTimer
+              title="Período de Envio de Memórias"
+              description="Tempo para gravar e enviar suas histórias"
+              startDate={user.kitActivatedAt || new Date()}
+              endDate={new Date(user.memoryPeriodEndDate)}
+              totalDays={90}
+              showExtendButton
+              onExtend={() => {
+                // TODO: Implementar modal de prorrogação
+                alert("Em breve: sistema de prorrogação por R$ 97/mês");
+              }}
+            />
+          )}
+          {user?.bookFinalizationEndDate && (
+            <CountdownTimer
+              title="Prazo para Finalizar o Livro"
+              description="Tempo para gerar, revisar e aprovar seu livro"
+              startDate={user.kitActivatedAt || new Date()}
+              endDate={new Date(user.bookFinalizationEndDate)}
+              totalDays={365}
+            />
+          )}
         </div>
+
+        {/* Stats Grid */}
+        <div className="grid md:grid-cols-4 gap-4">
+          <StatCard
+            icon={<FileAudio className="h-5 w-5" />}
+            label="Histórias Gravadas"
+            value={stats.memoriesCount}
+            color="primary"
+          />
+          <StatCard
+            icon={<ImageIcon className="h-5 w-5" />}
+            label="Fotos Adicionadas"
+            value={stats.photoCount}
+            color="secondary"
+          />
+          <StatCard
+            icon={<Clock className="h-5 w-5" />}
+            label="Tempo Restante"
+            value={`${Math.max(0, daysRemaining)} dias`}
+            color="accent"
+          />
+          <StatCard
+            icon={<ImageIcon className="h-5 w-5" />}
+            label="Imagens"
+            value={`${stats.estimatedImages} / 20`}
+            color="primary"
+          />
+        </div>
+
+        {/* Question Boxes Section */}
+        <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Perguntas das Caixinhas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Use as perguntas como "abridoras de caixinhas" para despertar memórias.
+            </p>
+            <div className="grid md:grid-cols-2 gap-3">
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/caixinhas">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Ver Todas as Caixinhas
+                </Link>
+              </Button>
+              <Button variant="default" className="w-full" asChild>
+                <Link href="/sortear-pergunta">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Sortear Pergunta Aleatória
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Main Actions */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 gap-6">
           {/* Register Memory */}
-          <Card className="border-2 border-primary/20 hover:border-primary/40 transition-colors cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5 text-primary" />
-                Registrar Memória
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground mb-4">
-                Grave uma história, escreva um texto, envie uma foto ou documento
-              </p>
-              <Button asChild className="w-full">
+          <Card className="border-2 hover:border-primary transition-colors cursor-pointer group">
+            <CardContent className="pt-6">
+              <Button 
+                size="lg" 
+                className="w-full text-lg py-6 rounded-xl group-hover:scale-105 transition-transform"
+                asChild
+              >
                 <Link href="/registrar-memoria">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Começar
+                  <Plus className="mr-2 h-5 w-5" />
+                  Registrar Memória
                 </Link>
               </Button>
+              <p className="text-sm text-muted-foreground text-center mt-4">
+                Grave áudio, escreva texto, ou envie fotos e documentos
+              </p>
             </CardContent>
           </Card>
 
-          {/* View Memories */}
-          <Card className="border-2 border-secondary/20 hover:border-secondary/40 transition-colors cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-secondary" />
-                Minhas Memórias
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground mb-4">
-                Veja todas as histórias que você já registrou
-              </p>
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/minhas-memorias">
-                  Ver Todas ({memoriesCount})
-                </Link>
+          {/* Generate Preview */}
+          <Card className={`border-2 ${canGeneratePreview ? 'hover:border-accent border-accent/20' : 'opacity-50'} transition-colors`}>
+            <CardContent className="pt-6">
+              <Button 
+                size="lg" 
+                variant={canGeneratePreview ? "default" : "outline"}
+                className="w-full text-lg py-6 rounded-xl"
+                disabled={!canGeneratePreview}
+                asChild={canGeneratePreview}
+              >
+                {canGeneratePreview ? (
+                  <Link href="/gerar-preview">
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    Gerar Preview do Livro
+                  </Link>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    Gerar Preview do Livro
+                  </>
+                )}
               </Button>
+              <p className="text-sm text-muted-foreground text-center mt-4">
+                {canGeneratePreview 
+                  ? "Visualize como seu livro está ficando" 
+                  : `Disponível a partir do Dia 80 (faltam ${Math.max(0, 80 - programDay)} dias)`
+                }
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Memories */}
-        {memoriesCount > 0 && (
-          <Card>
+        {/* Inspiration of the Day */}
+        {inspiration && (
+          <Card className="border-2 border-secondary/20 bg-gradient-to-br from-secondary/5 to-transparent">
             <CardHeader>
-              <CardTitle>Memórias Recentes</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-secondary" />
+                Inspiração do Dia
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {memories?.slice(0, 5).map((memory: any) => (
+              <p className="text-lg italic text-muted-foreground">
+                "{inspiration.question}"
+              </p>
+              <Button variant="outline" className="mt-4" asChild>
+                <Link href="/registrar-memoria">
+                  Responder Agora
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Memories */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Suas Memórias</span>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/memorias">Ver Todas</Link>
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {memories.length === 0 ? (
+              <div className="text-center py-12 space-y-4">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                  <BookOpen className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">
+                  Você ainda não registrou nenhuma memória.
+                </p>
+                <Button asChild>
+                  <Link href="/registrar-memoria">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Registrar Primeira Memória
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {memories.slice(0, 5).map((memory) => (
                   <div
                     key={memory.id}
-                    className="flex items-start justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
                   >
                     <div className="flex-1">
-                      <h3 className="font-semibold">{memory.title || "Sem título"}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {memory.category && `Categoria: ${memory.category}`}
-                      </p>
+                      <h3 className="font-semibold">{memory.title}</h3>
+                      {memory.summary && (
+                        <p className="text-sm text-muted-foreground line-clamp-1">
+                          {memory.summary}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        <Clock className="inline mr-1 h-3 w-3" />
-                        {new Date(memory.createdAt).toLocaleDateString("pt-BR")}
+                        {new Date(memory.createdAt).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
-                    <Button asChild variant="outline" size="sm">
+                    <Button variant="ghost" size="sm" asChild>
                       <Link href={`/memoria/${memory.id}`}>Ver</Link>
                     </Button>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Empty State */}
-        {memoriesCount === 0 && (
-          <Card className="text-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma memória registrada</h3>
-            <p className="text-muted-foreground mb-6">
-              Comece a registrar suas histórias agora
-            </p>
-            <Button asChild>
-              <Link href="/registrar-memoria">
-                <Plus className="mr-2 h-4 w-4" />
-                Registrar Primeira Memória
-              </Link>
-            </Button>
-          </Card>
-        )}
-      </main>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+// Helper Component
+function StatCard({ 
+  icon, 
+  label, 
+  value, 
+  color 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  value: string | number;
+  color: "primary" | "secondary" | "accent";
+}) {
+  const colorClasses = {
+    primary: "bg-primary/10 text-primary",
+    secondary: "bg-secondary/10 text-secondary",
+    accent: "bg-accent/10 text-accent",
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colorClasses[color]}`}>
+            {icon}
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="text-2xl font-bold">{value}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

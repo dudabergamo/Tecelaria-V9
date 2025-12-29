@@ -141,12 +141,10 @@ export default function ManageKit() {
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="hover:opacity-80 transition-opacity">
-                <img 
-                  src="/images/logo-transparent.png" 
-                  alt="Tecelaria" 
-                  className="h-8 w-auto"
-                />
+              <Link href="/">
+                <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                  Tecelaria
+                </h1>
               </Link>
               <Button variant="outline" size="sm" asChild>
                 <Link href="/dashboard">
@@ -177,12 +175,10 @@ export default function ManageKit() {
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="hover:opacity-80 transition-opacity">
-              <img 
-                src="/images/logo-transparent.png" 
-                alt="Tecelaria" 
-                className="h-8 w-auto"
-              />
+            <Link href="/">
+              <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                Tecelaria
+              </h1>
             </Link>
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard">

@@ -5,21 +5,17 @@ import { BookOpen, Calendar, Heart, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
-  const { refetchAuth } = useAuth();
   const activateKit = trpc.user.activateKit.useMutation({
-    onSuccess: async () => {
+    onSuccess: () => {
       toast.success("Kit ativado com sucesso! Bem-vindo à Tecelaria!");
-      await refetchAuth();
-      window.location.href = "/dashboard";
+      setLocation("/dashboard");
     },
     onError: (error: any) => {
-      console.error("Erro ao ativar kit:", error);
-      toast.error(error.message || "Erro ao ativar kit");
+      toast.error("Erro ao ativar kit: " + error.message);
     },
   });
 
@@ -31,10 +27,6 @@ export default function Onboarding() {
   }, [user, setLocation]);
 
   const handleActivate = () => {
-    if (!user?.id) {
-      toast.error("Usuário não identificado");
-      return;
-    }
     activateKit.mutate();
   };
 
@@ -167,11 +159,16 @@ export default function Onboarding() {
             size="lg" 
             className="text-lg px-12 py-6 rounded-xl"
             onClick={handleActivate}
+            disabled={activateKit.isPending}
           >
-            <>
-              <Sparkles className="mr-2 h-5 w-5" />
-              Começar Minha Jornada
-            </>
+            {activateKit.isPending ? (
+              "Ativando..."
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-5 w-5" />
+                Começar Minha Jornada
+              </>
+            )}
           </Button>
         </div>
       </div>

@@ -1,514 +1,438 @@
-import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
-import { TRPCError } from "@trpc/server";
+import { COOKIE_NAME } from "@shared/const";
+import { getSessionCookieOptions } from "./_core/cookies";
+import { systemRouter } from "./_core/systemRouter";
+import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { getDb, getUserByOpenId } from "./db";
+import { 
+  getUserByOpenId, 
+  getUserById, 
+  updateUserKitActivation, 
+  getUserMemories, 
+  createMemory, 
+  updateMemory,
+  getAllCategories, 
+  getCategoryById, 
+  getMemoryRecords,
+  getDailyInspiration,
+  getBookMetadataByUserId,
+  getUserUnansweredQuestions,
+  getRandomQuestion,
+  getQuestionsByBox,
+  getAllQuestions,
+  createKit,
+  getUserKits,
+  addKitMember,
+  getKitMembers,
+  removeKitMember,
+  activateKit,
+  getUserQuestionProgress,
+} from "./db";
+import { SignJWT } from "jose";
+import { ENV } from "./_core/env";
 
 export const appRouter = router({
+  system: systemRouter,
+  
   auth: router({
-    signup: publicProcedure
+    me: publicProcedure.query(opts => opts.ctx.user),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      return {
+        success: true,
+      } as const;
+    }),
+    
+    // Temporary test login for development
+    testLogin: publicProcedure.mutation(async ({ ctx }) => {
+      const { upsertUser } = await import("./db");
+      
+      const testUser = {
+        openId: "test-user-123",
+        name: "Maria Silva",
+        email: "maria.silva@tecelaria.com",
+        loginMethod: "test",
+      };
+      
+      // Create or update user in database
+      await upsertUser(testUser);
+      
+      // Create JWT token
+      const secret = new TextEncoder().encode(ENV.cookieSecret);
+      const token = await new SignJWT(testUser)
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("7d")
+        .sign(secret);
+      
+      // Set cookie
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, token, {
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+      
+      return { success: true, user: testUser };
+    }),
+  }),
+
+  user: router({
+    activateKit: protectedProcedure.mutation(async ({ ctx }) => {
+      await updateUserKitActivation(ctx.user.id);
+      return { success: true };
+    }),
+    
+    getDashboardData: protectedProcedure.query(async ({ ctx }) => {
+      const user = ctx.user;
+      const memories = await getUserMemories(user.id);
+      const categories = await getAllCategories();
+      const bookMetadata = await getBookMetadataByUserId(user.id);
+      const unansweredQuestions = await getUserUnansweredQuestions(user.id);
+      
+      // Calculate days remaining
+      let daysRemaining = 90;
+      let programDay = 0;
+      if (user.kitActivatedAt && user.programEndDate) {
+        const now = new Date();
+        const endDate = new Date(user.programEndDate);
+        const startDate = new Date(user.kitActivatedAt);
+        
+        const diffTime = endDate.getTime() - now.getTime();
+        daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        
+        const elapsedTime = now.getTime() - startDate.getTime();
+        programDay = Math.floor(elapsedTime / (1000 * 60 * 60 * 24));
+      }
+      
+      // Get daily inspiration
+      const inspiration = await getDailyInspiration(programDay);
+      
+      // Calculate statistics
+      const audioCount = memories.filter(m => {
+        // Check if memory has audio records (simplified for now)
+        return true; // TODO: implement proper check
+      }).length;
+      
+      const photoCount = memories.filter(m => {
+        // Check if memory has photo records (simplified for now)
+        return true; // TODO: implement proper check
+      }).length;
+      
+      // Estimate pages (rough estimate: 250 words per page)
+      const estimatedWords = memories.length * 500; // Assume 500 words per memory
+      const estimatedPages = Math.ceil(estimatedWords / 250);
+      
+      return {
+        user,
+        daysRemaining,
+        programDay,
+        memories,
+        categories,
+        bookMetadata,
+        unansweredQuestions,
+        inspiration,
+        stats: {
+          memoriesCount: memories.length,
+          audioCount,
+          photoCount,
+          estimatedPages,
+          estimatedImages: photoCount,
+        },
+      };
+    }),
+  }),
+
+  memories: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return await getUserMemories(ctx.user.id);
+    }),
+    
+    getCategories: protectedProcedure.query(async () => {
+      return await getAllCategories();
+    }),
+    
+    getUserMemoriesWithDetails: protectedProcedure.query(async ({ ctx }) => {
+      const memories = await getUserMemories(ctx.user.id);
+      
+      // Enrich memories with category names and record counts
+      const enrichedMemories = await Promise.all(
+        memories.map(async (memory) => {
+          const category = await getCategoryById(memory.categoryId);
+          const records = await getMemoryRecords(memory.id);
+          
+          return {
+            ...memory,
+            categoryId: memory.categoryId,
+            categoryName: category?.name || "Sem categoria",
+            recordCount: records.length,
+            recordTypes: Array.from(new Set(records.map((r: any) => r.type))),
+            themes: memory.themes ? JSON.parse(memory.themes as string) : null,
+            peopleMentioned: memory.peopleMentioned ? JSON.parse(memory.peopleMentioned as string) : null,
+          };
+        })
+      );
+      
+      return {
+        memories: enrichedMemories,
+        totalCount: enrichedMemories.length,
+      };
+    }),
+    getMemoryRecords: protectedProcedure
       .input(z.object({
-        email: z.string().email(),
-        password: z.string().min(8),
-        name: z.string().optional(),
-        cpf: z.string().optional(),
-        birthDate: z.date().optional(),
-        address: z.string().optional(),
-        howHeardAboutTecelaria: z.string().optional(),
+        memoryId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const records = await getMemoryRecords(input.memoryId);
+        return records;
+      }),
+
+    extractTextFromImage: protectedProcedure
+      .input(z.object({
+        imageUrl: z.string().url(),
       }))
       .mutation(async ({ input }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-          const bcrypt = await import("bcrypt");
-          const { randomUUID } = await import("crypto");
-
-          console.log("[Auth] Signup attempt for email:", input.email);
-
-          // Verificar se usuário já existe
-          const [existingUser] = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (existingUser) {
-            throw new TRPCError({ code: "CONFLICT", message: "Email ja cadastrado" });
-          }
-
-          const userId = randomUUID();
-          const hashedPassword = await bcrypt.hash(input.password, 10);
-          const emailConfirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-          await db.insert(users).values({
-            id: userId,
-            email: input.email,
-            password: hashedPassword,
-            name: input.name || "",
-            cpf: input.cpf || "",
-            birthDate: input.birthDate || null,
-            emailConfirmed: false,
-            emailConfirmationCode: emailConfirmationCode,
-            emailConfirmationCodeExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-
-          console.log("[Auth] Creating user with ID:", userId);
-          console.log("[Auth] User created successfully:", userId);
-
-          return { success: true, userId };
-        } catch (error) {
-          console.error("[Auth] Signup error:", error);
-          throw error;
-        }
+        const { extractTextFromImage } = await import("./_core/ocr");
+        const text = await extractTextFromImage(input.imageUrl);
+        return { text };
       }),
 
-    login: publicProcedure
+    extractRecipeFromImage: protectedProcedure
       .input(z.object({
-        email: z.string().email(),
-        password: z.string(),
+        imageUrl: z.string().url(),
       }))
-      .mutation(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-          const bcrypt = await import("bcrypt");
-
-          console.log("[Auth] Login attempt for email:", input.email);
-
-          const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (!user) {
-            console.log("[Auth] User not found:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha inválidos" });
-          }
-
-          if (!user.password) {
-            console.log("[Auth] User has no password (OAuth only):", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Use OAuth para fazer login" });
-          }
-
-          const passwordMatch = await bcrypt.compare(input.password, user.password);
-          if (!passwordMatch) {
-            console.log("[Auth] Password mismatch for:", input.email);
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha inválidos" });
-          }
-
-          console.log("[Auth] Login successful for:", input.email);
-          
-          // Criar sessão do Passport
-          return new Promise((resolve, reject) => {
-            ctx.req.login({ id: user.id }, (err: any) => {
-              if (err) {
-                console.error("[Auth] Error creating session:", err);
-                reject(err);
-              } else {
-                console.log("[Auth] Session created for:", input.email);
-                resolve({ success: true, userId: user.id });
-              }
-            });
-          });
-        } catch (error) {
-          console.error("[Auth] Login error:", error);
-          throw error;
-        }
+      .mutation(async ({ input }) => {
+        const { extractRecipeFromImage } = await import("./_core/ocr");
+        const recipe = await extractRecipeFromImage(input.imageUrl);
+        return recipe;
       }),
 
-    getSession: publicProcedure
-      .query(async ({ ctx }) => {
-        console.log("[Auth] getSession called, user:", ctx.user?.email);
-        if (!ctx.user) {
-          return null;
-        }
-        return ctx.user;
-      }),
-
-    me: publicProcedure
-      .query(async ({ ctx }) => {
-        console.log("[Auth] me called, user:", ctx.user?.email);
-        if (!ctx.user) {
-          return null;
-        }
-        return ctx.user;
-      }),
-
-    logout: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        console.log("[Auth] Logout for user:", ctx.user?.email);
+     updateMemory: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          title: z.string().optional(),
+          summary: z.string().optional(),
+          categoryId: z.number().optional(),
+          periodMentioned: z.string().optional(),
+          themes: z.array(z.string()).optional(),
+          peopleMentioned: z.array(z.string()).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateMemory(input.id, {
+          title: input.title,
+          summary: input.summary,
+          categoryId: input.categoryId,
+          periodMentioned: input.periodMentioned,
+          themes: input.themes ? JSON.stringify(input.themes) : undefined,
+          peopleMentioned: input.peopleMentioned ? JSON.stringify(input.peopleMentioned) : undefined,
+        });
         return { success: true };
       }),
 
-    confirmEmail: publicProcedure
-      .input(z.object({
-        email: z.string().email(),
-        code: z.string(),
-      }))
-      .mutation(async ({ input }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[Auth] Confirming email for:", input.email);
-
-          const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (!user) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
-          }
-
-          if (user.emailConfirmationCode !== input.code) {
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo invalido" });
-          }
-
-          if (user.emailConfirmationCodeExpiresAt && user.emailConfirmationCodeExpiresAt < new Date()) {
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "Codigo expirado" });
-          }
-
-          await db
-            .update(users)
-            .set({
-              emailConfirmed: true,
-              emailConfirmationCode: null,
-              emailConfirmationCodeExpiresAt: null,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, user.id));
-
-          console.log("[Auth] Email confirmed for:", input.email);
-          return { success: true };
-        } catch (error) {
-          console.error("[Auth] Confirm email error:", error);
-          throw error;
-        }
+    uploadFile: protectedProcedure
+      .input(
+        z.object({
+          fileName: z.string(),
+          fileData: z.string(), // base64
+          contentType: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { storagePut } = await import("./storage");
+        
+        // Decode base64
+        const buffer = Buffer.from(input.fileData, 'base64');
+        
+        // Generate unique file key
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(7);
+        const fileKey = `users/${ctx.user.id}/uploads/${timestamp}-${randomSuffix}-${input.fileName}`;
+        
+        // Upload to S3
+        const { url } = await storagePut(fileKey, buffer, input.contentType);
+        
+        return { url, fileKey };
       }),
 
-    updateProfile: publicProcedure
-      .input(z.object({
-        email: z.string().email(),
-        name: z.string().optional(),
-        cpf: z.string().optional(),
-        birthDate: z.date().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
-        phone: z.string().optional(),
-        howHeardAboutTecelaria: z.string().optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[Auth] Updating profile for:", input.email);
-
-          const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (!user) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Email não encontrado. Por favor, faça signup novamente." });
-          }
-
-          const updateData: any = {
-            updatedAt: new Date(),
-          };
-          
-          if (input.name !== undefined) updateData.name = input.name;
-          if (input.cpf !== undefined) updateData.cpf = input.cpf;
-          if (input.birthDate !== undefined) updateData.birthDate = input.birthDate;
-          if (input.city !== undefined) updateData.city = input.city;
-          if (input.state !== undefined) updateData.state = input.state;
-          if (input.phone !== undefined) updateData.phone = input.phone;
-          if (input.howHeardAboutTecelaria !== undefined) updateData.howHeardAboutTecelaria = input.howHeardAboutTecelaria;
-          
-          await db
-            .update(users)
-            .set(updateData)
-            .where(eq(users.id, user.id));
-
-          console.log("[Auth] Profile updated for:", input.email);
-          return { success: true, userId: user.id };
-        } catch (error) {
-          console.error("[Auth] Update profile error:", error);
-          throw error;
+    processMemory: protectedProcedure
+      .input(
+        z.object({
+          categoryId: z.number(),
+          type: z.enum(["audio", "text", "document", "photo"]),
+          fileUrl: z.string().optional(),
+          textContent: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { transcribeMemoryAudio, analyzeMemoryContent } = await import("./aiProcessor");
+        
+        let analysisResult;
+        let contentToAnalyze: string;
+        
+        if (input.type === "audio" && input.fileUrl) {
+          // Process audio: transcribe + analyze
+          contentToAnalyze = await transcribeMemoryAudio(input.fileUrl);
+          analysisResult = await analyzeMemoryContent(contentToAnalyze);
+        } else if (input.type === "text" && input.textContent) {
+          // Analyze text directly
+          analysisResult = await analyzeMemoryContent(input.textContent);
+        } else {
+          throw new Error("Invalid input: need fileUrl for audio or textContent for text");
         }
+        
+        // Create memory with AI-generated data
+        const memoryId = await createMemory({
+          userId: ctx.user.id,
+          categoryId: input.categoryId,
+          title: analysisResult.title,
+          summary: analysisResult.summary,
+          themes: analysisResult.themes,
+          peopleMentioned: analysisResult.peopleMentioned,
+          periodMentioned: analysisResult.periodMentioned || undefined,
+        });
+        
+        return {
+          memoryId,
+          analysis: analysisResult,
+        };
       }),
-
-    autoLogin: publicProcedure
-      .input(z.object({
-        email: z.string().email(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-
-          console.log("[Auth] Auto-login attempt for email:", input.email);
-
-          const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, input.email))
-            .limit(1);
-
-          if (!user) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Usuario nao encontrado" });
-          }
-
-          console.log("[Auth] Auto-login successful for:", input.email);
-
-          return new Promise((resolve, reject) => {
-            ctx.req.login({ id: user.id }, (err: any) => {
-              if (err) {
-                console.error("[Auth] Error during auto-login:", err);
-                reject(err);
-              } else {
-                console.log("[Auth] Session created for:", input.email);
-                resolve({ success: true, userId: user.id });
-              }
-            });
-          });
-        } catch (error) {
-          console.error("[Auth] Auto-login error:", error);
-          throw error;
-        }
-      }),
-  }),
-
-  memory: router({
-    getCategories: publicProcedure
-      .query(async () => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { memoryCategories } = await import('../drizzle/schema');
-          const { asc } = await import('drizzle-orm');
-
-          const categories = await db
-            .select()
-            .from(memoryCategories)
-            .orderBy(asc(memoryCategories.order));
-
-          return categories;
-        } catch (error) {
-          console.error("Error fetching memory categories:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch memory categories" });
-        }
-      }),
-
+    
     create: protectedProcedure
       .input(z.object({
-        categoryId: z.string(),
+        categoryId: z.number(),
         title: z.string(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { memories } = await import('../drizzle/schema');
-          const { randomUUID } = await import('crypto');
-
-          const memoryId = randomUUID();
-
-          await db.insert(memories).values({
-            id: memoryId,
-            userId: ctx.user!.id,
-            categoryId: input.categoryId,
-            title: input.title,
-          });
-
-          return { success: true, memoryId };
-        } catch (error) {
-          console.error("Error creating memory:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create memory" });
-        }
-      }),
-
-    addRecord: protectedProcedure
-      .input(z.object({
-        memoryId: z.string(),
-        type: z.enum(['audio', 'text', 'document', 'photo']),
+        type: z.enum(["audio", "text", "document", "photo"]),
         content: z.string().optional(),
-        fileUrl: z.string().optional(),
         fileName: z.string().optional(),
         fileSize: z.number().optional(),
         mimeType: z.string().optional(),
       }))
-      .mutation(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { memoryRecords } = await import('../drizzle/schema');
-          const { randomUUID } = await import('crypto');
-
-          const recordId = randomUUID();
-
-          await db.insert(memoryRecords).values({
-            id: recordId,
-            memoryId: input.memoryId,
-            userId: ctx.user!.id,
-            type: input.type,
-            content: input.content,
-            fileUrl: input.fileUrl,
-            fileName: input.fileName,
-            fileSize: input.fileSize,
-            mimeType: input.mimeType,
-          });
-
-          return { success: true, recordId };
-        } catch (error) {
-          console.error("Error adding memory record:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to add memory record" });
-        }
-      }),
-
-    getMemories: protectedProcedure
-      .query(async ({ ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { memories, memoryRecords, memoryCategories } = await import('../drizzle/schema');
-          const { eq, desc } = await import('drizzle-orm');
-
-          const userMemories = await db
-            .select({
-              id: memories.id,
-              title: memories.title,
-              createdAt: memories.createdAt,
-              category: memoryCategories.name,
-              recordCount: memoryRecords.id, // This is not correct, need aggregation
-            })
-            .from(memories)
-            .leftJoin(memoryCategories, eq(memories.categoryId, memoryCategories.id))
-            .leftJoin(memoryRecords, eq(memories.id, memoryRecords.memoryId))
-            .where(eq(memories.userId, ctx.user!.id))
-            .orderBy(desc(memories.createdAt));
-
-          // This is a simplified query. A real implementation would need to correctly
-          // count records per memory, which might require a subquery or a different approach.
-          // For now, this gives us a list of memories with some associated data.
-
-          return userMemories;
-        } catch (error) {
-          console.error("Error fetching memories:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch memories" });
-        }
-      }),
-
-    getMemoryById: protectedProcedure
-      .input(z.object({ memoryId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-          const { memories, memoryRecords, memoryCategories } = await import('../drizzle/schema');
-          const { eq, and } = await import('drizzle-orm');
-
-          // Get memory details
-          const [memory] = await db
-            .select({
-              id: memories.id,
-              title: memories.title,
-              summary: memories.summary,
-              categoryId: memories.categoryId,
-              categoryName: memoryCategories.name,
-              themes: memories.themes,
-              peopleMentioned: memories.peopleMentioned,
-              periodMentioned: memories.periodMentioned,
-              createdAt: memories.createdAt,
-              userId: memories.userId,
-            })
-            .from(memories)
-            .leftJoin(memoryCategories, eq(memories.categoryId, memoryCategories.id))
-            .where(and(
-              eq(memories.id, input.memoryId),
-              eq(memories.userId, ctx.user!.id)
-            ))
-            .limit(1);
-
-          if (!memory) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Memória não encontrada" });
-          }
-
-          // Get memory records
-          const records = await db
-            .select()
-            .from(memoryRecords)
-            .where(eq(memoryRecords.memoryId, input.memoryId));
-
-          return {
-            ...memory,
-            records,
-          };
-        } catch (error) {
-          console.error("Error fetching memory by ID:", error);
-          if (error instanceof TRPCError) throw error;
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch memory" });
-        }
+      .mutation(async ({ ctx, input }) => {
+        const { createMemory, createMemoryRecord, updateUserLastUpload, incrementCustomMemoryCount } = await import("./db");
+        
+        // Create memory
+        const memory = await createMemory({
+          userId: ctx.user.id,
+          categoryId: input.categoryId,
+          title: input.title,
+        });
+        
+        // Create memory record
+        await createMemoryRecord({
+          memoryId: memory.id,
+          userId: ctx.user.id,
+          content: input.content,
+          type: input.type,
+          fileName: input.fileName,
+          fileSize: input.fileSize,
+          mimeType: input.mimeType,
+        });
+        
+        // Update user last upload date
+        await updateUserLastUpload(ctx.user.id);
+        
+        // Increment custom memory count if new custom
+        // TODO: implement proper check for custom categories
+        
+        return memory;
       }),
   }),
 
-  user: router({
-    activateKit: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        try {
-          const db = await getDb();
-          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  questions: router({
+    getRandomQuestion: protectedProcedure
+      .input(z.object({
+        boxNumber: z.number().min(1).max(4).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getRandomQuestion(input?.boxNumber);
+      }),
 
-          const { users } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
+    getQuestionsByBox: protectedProcedure
+      .input(z.object({
+        boxNumber: z.number().min(1).max(4),
+      }))
+      .query(async ({ input }) => {
+        return await getQuestionsByBox(input.boxNumber);
+      }),
 
-          console.log("[User] Activating kit for user:", ctx.user!.id);
+    getAllQuestions: protectedProcedure
+      .query(async () => {
+        return await getAllQuestions();
+      }),
 
-          const now = new Date();
-          const programEndDate = new Date(now);
-          programEndDate.setDate(programEndDate.getDate() + 90);
+    getProgress: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await getUserQuestionProgress(ctx.user.id);
+      }),
+  }),
 
-          await db
-            .update(users)
-            .set({
-              kitActivatedAt: now,
-              programEndDate: programEndDate,
-              updatedAt: now,
-            })
-            .where(eq(users.id, ctx.user!.id));
+  kits: router({
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await createKit({
+          name: input.name,
+          description: input.description,
+          ownerUserId: ctx.user.id,
+        });
+      }),
 
-          console.log("[User] Kit activated successfully for user:", ctx.user!.id);
+    getUserKits: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await getUserKits(ctx.user.id);
+      }),
 
-          return { success: true };
-        } catch (error) {
-          console.error("[User] Error activating kit:", error);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to activate kit" });
+    addMember: protectedProcedure
+      .input(z.object({
+        kitId: z.number(),
+        userEmail: z.string().email(),
+        role: z.enum(["collaborator", "viewer"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Find user by email
+        const { getUserByEmail } = await import("./db");
+        const targetUser = await getUserByEmail(input.userEmail);
+        if (!targetUser) {
+          throw new Error("Usuário não encontrado");
         }
+
+        return await addKitMember({
+          kitId: input.kitId,
+          userId: targetUser.id,
+          role: input.role || "collaborator",
+          invitedBy: ctx.user.id,
+        });
+      }),
+
+    getMembers: protectedProcedure
+      .input(z.object({
+        kitId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getKitMembers(input.kitId);
+      }),
+
+    removeMember: protectedProcedure
+      .input(z.object({
+        kitId: z.number(),
+        userId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await removeKitMember(input.kitId, input.userId);
+        return { success: true };
+      }),
+
+    activate: protectedProcedure
+      .input(z.object({
+        kitId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await activateKit(input.kitId);
+        return { success: true };
       }),
   }),
 });

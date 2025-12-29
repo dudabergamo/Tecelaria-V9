@@ -8,31 +8,14 @@ import {
   ArrowLeft, 
   BookOpen, 
   Mic, 
-  Package,
-  CheckCircle2,
-  Eye
+  Package 
 } from "lucide-react";
 import { Link } from "wouter";
-import { useState } from "react";
-import MemoryDetailDialog from "@/components/MemoryDetailDialog";
 
 export default function Caixinhas() {
   const { user, loading } = useAuth();
-  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
   const { data: allQuestions, isLoading } = trpc.questions.getAllQuestions.useQuery();
   const { data: progress } = trpc.questions.getProgress.useQuery();
-  const { data: answeredIds, refetch: refetchAnsweredIds } = trpc.questions.getAnsweredQuestionIds.useQuery();
-  
-  const handleViewMemory = (questionId: number) => {
-    setSelectedQuestionId(questionId);
-    setIsDialogOpen(true);
-  };
-  
-  const handleMemoryDeleted = () => {
-    refetchAnsweredIds();
-  };
 
   if (loading || isLoading) {
     return (
@@ -108,12 +91,10 @@ export default function Caixinhas() {
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="hover:opacity-80 transition-opacity">
-              <img 
-                src="/images/logo-transparent.png" 
-                alt="Tecelaria" 
-                className="h-8 w-auto"
-              />
+            <Link href="/">
+              <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                Tecelaria
+              </h1>
             </Link>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild>
@@ -179,46 +160,24 @@ export default function Caixinhas() {
                 </CardHeader>
                 <CardContent>
                   <Accordion type="single" collapsible className="w-full">
-                    {questions.map((question) => {
-                      const isAnswered = answeredIds?.includes(question.id);
-                      return (
-                        <AccordionItem key={question.id} value={`question-${question.id}`}>
-                          <AccordionTrigger className="text-left">
-                            <div className="flex items-center gap-2 flex-1">
-                              {isAnswered && (
-                                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                              )}
-                              <span className="font-semibold">#{question.number}</span>
-                              <span className={isAnswered ? "text-muted-foreground" : ""}>
-                                {question.question}
-                              </span>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="flex gap-2 pt-2">
-                              {isAnswered ? (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => handleViewMemory(question.id)}
-                                  className="flex items-center gap-2"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  Ver Resposta
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="default" asChild>
-                                  <Link href={`/registrar-memoria-caixinha?questionId=${question.id}`}>
-                                    <Mic className="mr-2 h-4 w-4" />
-                                    Responder Agora
-                                  </Link>
-                                </Button>
-                              )}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      );
-                    })}
+                    {questions.map((question) => (
+                      <AccordionItem key={question.id} value={`question-${question.id}`}>
+                        <AccordionTrigger className="text-left">
+                          <span className="font-semibold mr-2">#{question.number}</span>
+                          {question.question}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="flex gap-2 pt-2">
+                            <Button size="sm" variant="default" asChild>
+                              <Link href={`/registrar-memoria?pergunta=${encodeURIComponent(question.question)}`}>
+                                <Mic className="mr-2 h-4 w-4" />
+                                Responder Agora
+                              </Link>
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
                   </Accordion>
                 </CardContent>
               </Card>
@@ -250,16 +209,6 @@ export default function Caixinhas() {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Memory Detail Dialog */}
-      {selectedQuestionId && (
-        <MemoryDetailDialog
-          questionId={selectedQuestionId}
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          onMemoryDeleted={handleMemoryDeleted}
-        />
-      )}
     </div>
   );
 }

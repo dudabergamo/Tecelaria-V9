@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { 
   ArrowLeft, 
   Dices, 
+  Mic, 
   PenLine, 
   Sparkles 
 } from "lucide-react";
@@ -32,8 +33,6 @@ export default function SortearPergunta() {
   }
 
   const handleSortear = () => {
-    console.log('[DEBUG] Sorteando com boxNumber:', selectedBox);
-    setCurrentQuestion(null); // Clear previous question
     setShouldFetch(true);
   };
 
@@ -81,12 +80,10 @@ export default function SortearPergunta() {
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="hover:opacity-80 transition-opacity">
-              <img 
-                src="/images/logo-transparent.png" 
-                alt="Tecelaria" 
-                className="h-8 w-auto"
-              />
+            <Link href="/">
+              <h1 className="text-2xl font-bold cursor-pointer hover:text-primary transition-colors">
+                Tecelaria
+              </h1>
             </Link>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild>
@@ -196,11 +193,17 @@ export default function SortearPergunta() {
                 {currentQuestion.question}
               </p>
 
-              <div className="flex justify-center">
-                <Button size="lg" className="text-lg px-8 py-6 rounded-xl" asChild>
-                  <Link href={`/registrar-memoria?questionId=${currentQuestion.id}&categoryId=${currentQuestion.categoryId || ''}`}>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button size="lg" variant="default" asChild>
+                  <Link href={`/registrar-memoria?pergunta=${encodeURIComponent(currentQuestion.question)}`}>
+                    <Mic className="mr-2 h-5 w-5" />
+                    Gravar Áudio
+                  </Link>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
+                  <Link href={`/registrar-memoria?pergunta=${encodeURIComponent(currentQuestion.question)}`}>
                     <PenLine className="mr-2 h-5 w-5" />
-                    Registrar Resposta
+                    Escrever Texto
                   </Link>
                 </Button>
               </div>

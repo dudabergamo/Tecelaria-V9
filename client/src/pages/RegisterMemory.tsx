@@ -1,447 +1,560 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import {
-  FileAudio,
-  FileText,
-  Image as ImageIcon,
-  Mic,
+import { 
+  FileAudio, 
+  FileText, 
+  Image as ImageIcon, 
+  Mic, 
   Upload,
   ArrowLeft,
   Loader2,
-  Sparkles,
-  X,
+  Sparkles
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import axios from "axios";
 
 export default function RegisterMemory() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const utils = trpc.useContext();
-
-  const [activeTab, setActiveTab] = useState("text");
+  const [activeTab, setActiveTab] = useState("audio");
   const [isRecording, setIsRecording] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [customTitle, setCustomTitle] = useState("");
   const [textContent, setTextContent] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
-
+  const [isUploading, setIsUploading] = useState(false);
+  const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+  
   const audioRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: categories } = trpc.memory.getCategories.useQuery();
+  const { data: dashboardData } = trpc.user.getDashboardData.useQuery();
+  const categories = dashboardData?.categories || [];
+  const canCreateCustom = (user?.customMemoryCount || 0) < 5;
 
-  const createMemory = trpc.memory.create.useMutation();
-  const addRecord = trpc.memory.addRecord.useMutation();
+  const uploadFileMutation = trpc.memories.uploadFile.useMutation();
+  const extractTextMutation = trpc.memories.extractTextFromImage.useMutation();
+  const processMemoryMutation = trpc.memories.processMemory.useMutation({
+    onSuccess: () => {
+      toast.success("Memória processada com sucesso!");
+      setIsUploading(false);
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao processar memória: " + error.message);
+      setIsUploading(false);
+    },
+  });
 
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
+      audioRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        setRecordedAudio(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], `recording-${Date.now()}.webm`, { type: 'audio/webm' });
+        setSelectedFiles([file]);
+        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
-      audioRef.current = mediaRecorder;
       setIsRecording(true);
+      toast.success("Gravação iniciada");
     } catch (error) {
-      toast.error("Erro ao acessar microfone");
+      toast.error("Erro ao acessar microfone. Verifique as permissões.");
     }
   };
 
   const handleStopRecording = () => {
-    if (audioRef.current) {
+    if (audioRef.current && audioRef.current.state === "recording") {
       audioRef.current.stop();
       setIsRecording(false);
+      toast.success("Gravação finalizada");
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files)]);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setSelectedFiles(files);
+  };
+
+  const handleProcessOCR = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error("Selecione uma foto primeiro");
+      return;
     }
-  };
 
-  const handleRemoveFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+    const file = selectedFiles[0];
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione uma imagem");
+      return;
+    }
 
-  const uploadFile = async (file: File, memoryId: string) => {
-    if (!user) throw new Error("Usuário não autenticado.");
+    setIsProcessingOCR(true);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("userId", user.id);
-    formData.append("memoryId", memoryId);
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    const response = await axios.post("/api/upload", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+      const fileData = await base64Promise;
 
-    return response.data.url;
+      // Upload image first
+      const uploadResult = await uploadFileMutation.mutateAsync({
+        fileName: file.name,
+        fileData,
+        contentType: file.type,
+      });
+
+      // Extract text using OCR
+      const ocrResult = await extractTextMutation.mutateAsync({
+        imageUrl: uploadResult.url,
+      });
+
+      // Set extracted text
+      setTextContent(ocrResult.text);
+      setActiveTab("text"); // Switch to text tab
+      toast.success("✨ Texto extraído com sucesso! Revise e edite se necessário.");
+    } catch (error: any) {
+      toast.error("Erro ao processar OCR: " + error.message);
+    } finally {
+      setIsProcessingOCR(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!title.trim()) {
-      toast.error("Digite um título para a memória");
-      return;
-    }
-
-    if (!category) {
+    
+    if (!selectedCategory) {
       toast.error("Selecione uma categoria");
       return;
     }
 
-    if (!textContent.trim() && selectedFiles.length === 0 && !recordedAudio) {
-      toast.error("Adicione pelo menos um conteúdo (texto, áudio ou arquivo)");
+    if (activeTab === "text" && !textContent.trim()) {
+      toast.error("Digite o conteúdo da memória");
       return;
     }
 
-    setIsSubmitting(true);
+    if (activeTab === "audio" && selectedFiles.length === 0) {
+      toast.error("Selecione um arquivo de áudio");
+      return;
+    }
+
+    setIsUploading(true);
 
     try {
-      const memoryResult = await createMemory.mutateAsync({
-        title,
-        categoryId: category,
-      });
+      const categoryId = parseInt(selectedCategory);
 
-      const memoryId = memoryResult.memoryId;
-
-      // Add text record
-      if (textContent.trim()) {
-        await addRecord.mutateAsync({
-          memoryId,
+      if (activeTab === "text") {
+        // Process text directly
+        processMemoryMutation.mutate({
+          categoryId,
           type: "text",
-          content: textContent,
+          textContent: textContent.trim(),
         });
+      } else if (activeTab === "audio" && selectedFiles.length > 0) {
+        // Upload audio file first
+        const file = selectedFiles[0];
+        const reader = new FileReader();
+        
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          try {
+            // Upload to S3
+            const uploadResult = await uploadFileMutation.mutateAsync({
+              fileName: file.name,
+              fileData: base64,
+              contentType: file.type,
+            });
+            
+            // Process with Whisper + LLM
+            processMemoryMutation.mutate({
+              categoryId,
+              type: "audio",
+              fileUrl: uploadResult.url,
+            });
+          } catch (error) {
+            toast.error("Erro ao fazer upload do arquivo");
+            setIsUploading(false);
+          }
+        };
+        
+        reader.onerror = () => {
+          toast.error("Erro ao ler arquivo");
+          setIsUploading(false);
+        };
+        
+        reader.readAsDataURL(file);
+      } else {
+        toast.info("Tipo de memória ainda não suportado. Use texto ou áudio.");
+        setIsUploading(false);
       }
-
-      // Add audio record
-      if (recordedAudio) {
-        const audioFile = new File([recordedAudio], "audio_gravado.webm", { type: "audio/webm" });
-        const fileUrl = await uploadFile(audioFile, memoryId);
-        await addRecord.mutateAsync({
-          memoryId,
-          type: "audio",
-          fileUrl,
-          fileName: "audio_gravado.webm",
-          mimeType: "audio/webm",
-        });
-      }
-
-      // Add file records
-      for (const file of selectedFiles) {
-        const fileUrl = await uploadFile(file, memoryId);
-        const type = file.type.startsWith("image/") ? "photo" : "document";
-
-        await addRecord.mutateAsync({
-          memoryId,
-          type: type as "photo" | "document",
-          fileUrl,
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type,
-        });
-      }
-
-      toast.success("Memória registrada com sucesso!");
-      // Reset form state
-      setTitle("");
-      setTextContent("");
-      setSelectedFiles([]);
-      setRecordedAudio(null);
-      utils.memory.getMemories.invalidate();
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao registrar memória");
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) {
+      toast.error("Erro ao processar memória");
+      setIsUploading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Voltar
-                </Link>
-              </Button>
-              <h1 className="text-2xl font-bold">Registrar Memória</h1>
-            </div>
+      <header className="border-b bg-card">
+        <div className="container py-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Link>
+            </Button>
+            <h1 className="text-2xl font-bold">Registrar Memória</h1>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="container py-8 max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Title */}
+          {/* Category Selection */}
           <Card>
             <CardHeader>
-              <CardTitle>Informações Básicas</CardTitle>
+              <CardTitle>Escolha uma Categoria</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Título da Memória *</Label>
-                <Input
-                  id="title"
-                  placeholder="Ex: Meu primeiro dia de escola"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={isSubmitting}
-                />
+                <Label htmlFor="category">Categoria</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new-custom" disabled={!canCreateCustom}>
+                      ✨ Nova Memória Personalizada {!canCreateCustom && "(Limite atingido)"}
+                    </SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!canCreateCustom && (
+                  <p className="text-sm text-muted-foreground">
+                    Você já criou 5 memórias personalizadas. Use as categorias pré-definidas.
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoria *</Label>
-                <select
-                  id="category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-                >
-                  <option value="">Selecione uma categoria</option>
-                  {categories?.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+              {selectedCategory === "new-custom" && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-title">Título da Memória Personalizada</Label>
+                  <Input
+                    id="custom-title"
+                    placeholder="Ex: Minha viagem inesquecível"
+                    value={customTitle}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recording Protocol Instructions */}
+          <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mic className="h-5 w-5 text-primary" />
+                🎙️ Protocolo de Gravação (Importante!)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm space-y-2">
+                <p className="font-semibold">
+                  Para facilitar a organização do seu livro, siga este protocolo ao gravar:
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                  <li>
+                    <strong>Comece dizendo:</strong> "Estou respondendo a pergunta [número] da caixinha [nome]"
+                  </li>
+                  <li>
+                    <strong>Exemplo:</strong> "Estou respondendo a pergunta 5 da caixinha Comece Por Aqui: Qual é o nome completo dos seus pais?"
+                  </li>
+                  <li>
+                    <strong>Depois:</strong> Conte sua história livremente, no seu ritmo
+                  </li>
+                  <li>
+                    <strong>Dica:</strong> Fale naturalmente, como se estivesse conversando com alguém querido
+                  </li>
+                </ol>
+                <div className="mt-3 p-3 bg-background rounded-md border">
+                  <p className="text-xs text-muted-foreground">
+                    💡 <strong>Por que isso é importante?</strong> Ao mencionar a pergunta no início, 
+                    facilitamos a organização automática das suas memórias no livro final. 
+                    Mas não se preocupe: você também pode gravar memórias livres, sem pergunta específica!
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Content Tabs */}
+          {/* Content Type Tabs */}
           <Card>
             <CardHeader>
-              <CardTitle>Conteúdo da Memória *</CardTitle>
+              <CardTitle>Como deseja registrar?</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="text" className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    <span className="hidden sm:inline">Texto</span>
+                  <TabsTrigger value="audio">
+                    <FileAudio className="h-4 w-4 mr-2" />
+                    Áudio
                   </TabsTrigger>
-                  <TabsTrigger value="audio" className="flex items-center gap-2">
-                    <Mic className="h-4 w-4" />
-                    <span className="hidden sm:inline">Áudio</span>
+                  <TabsTrigger value="text">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Texto
                   </TabsTrigger>
-                  <TabsTrigger value="image" className="flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    <span className="hidden sm:inline">Imagem</span>
+                  <TabsTrigger value="document">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Documento
                   </TabsTrigger>
-                  <TabsTrigger value="files" className="flex items-center gap-2">
-                    <FileAudio className="h-4 w-4" />
-                    <span className="hidden sm:inline">Arquivos</span>
+                  <TabsTrigger value="photo">
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Foto
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Text Tab */}
-                <TabsContent value="text" className="space-y-4">
-                  <Textarea
-                    placeholder="Escreva sua história aqui..."
-                    value={textContent}
-                    onChange={(e) => setTextContent(e.target.value)}
-                    disabled={isSubmitting}
-                    className="min-h-64"
-                  />
-                </TabsContent>
-
-                {/* Audio Tab */}
-                <TabsContent value="audio" className="space-y-4">
+                <TabsContent value="audio" className="space-y-4 mt-6">
                   <div className="space-y-4">
-                    {!recordedAudio ? (
-                      <Button
-                        type="button"
-                        onClick={
-                          isRecording ? handleStopRecording : handleStartRecording
-                        }
-                        disabled={isSubmitting}
-                        size="lg"
-                        className="w-full"
-                      >
-                        <Mic className="mr-2 h-4 w-4" />
-                        {isRecording ? "Parar Gravação..." : "Iniciar Gravação"}
-                      </Button>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="bg-muted p-4 rounded-lg">
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Áudio gravado com sucesso!
-                          </p>
-                          <audio
-                            controls
-                            src={URL.createObjectURL(recordedAudio)}
-                            className="w-full"
-                          />
-                        </div>
+                    <div className="flex gap-4">
+                      {!isRecording ? (
                         <Button
                           type="button"
-                          onClick={() => setRecordedAudio(null)}
+                          onClick={handleStartRecording}
                           variant="outline"
-                          className="w-full"
+                          className="flex-1"
                         >
-                          Gravar Novamente
+                          <Mic className="h-4 w-4 mr-2" />
+                          Gravar Áudio
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={handleStopRecording}
+                          variant="destructive"
+                          className="flex-1"
+                        >
+                          <Mic className="h-4 w-4 mr-2 animate-pulse" />
+                          Parar Gravação
+                        </Button>
+                      )}
+                      
+                      <Button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload de Arquivo
+                      </Button>
+                    </div>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*,.mp3,.wav,.m4a,.webm"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    
+                    {selectedFiles.length > 0 && (
+                      <div className="p-4 bg-muted rounded-lg">
+                        <p className="text-sm font-medium">Arquivo selecionado:</p>
+                        <p className="text-sm text-muted-foreground">{selectedFiles[0].name}</p>
+                      </div>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground">
+                      Formatos aceitos: MP3, WAV, M4A, WebM
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="text" className="space-y-4 mt-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="text-content">Escreva sua memória</Label>
+                    <Textarea
+                      id="text-content"
+                      placeholder="Conte sua história aqui..."
+                      rows={10}
+                      value={textContent}
+                      onChange={(e) => setTextContent(e.target.value)}
+                      className="resize-none"
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="document" className="space-y-4 mt-6">
+                  <div className="space-y-4">
+                    <Button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Selecionar Documento
+                    </Button>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    
+                    {selectedFiles.length > 0 && (
+                      <div className="p-4 bg-muted rounded-lg">
+                        <p className="text-sm font-medium">Documento selecionado:</p>
+                        <p className="text-sm text-muted-foreground">{selectedFiles[0].name}</p>
+                      </div>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground">
+                      Formatos aceitos: PDF, Word (.doc, .docx)
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="photo" className="space-y-4 mt-6">
+                  <div className="space-y-4">
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+                      <p className="text-sm font-semibold flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        📝 OCR para Cadernos Manuscritos
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Se você tirou foto de um caderno escrito à mão, podemos extrair o texto automaticamente! 
+                        Basta fazer upload da foto e clicar em "Extrair Texto".
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Selecionar Foto
+                    </Button>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    
+                    {selectedFiles.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="p-4 bg-muted rounded-lg">
+                          <p className="text-sm font-medium">Foto selecionada:</p>
+                          <p className="text-sm text-muted-foreground">{selectedFiles[0].name}</p>
+                        </div>
+                        
+                        <Button
+                          type="button"
+                          onClick={handleProcessOCR}
+                          disabled={isProcessingOCR}
+                          className="w-full"
+                          variant="default"
+                        >
+                          {isProcessingOCR ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processando OCR...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              ✨ Extrair Texto da Foto
+                            </>
+                          )}
                         </Button>
                       </div>
                     )}
-                  </div>
-                </TabsContent>
-
-                {/* Image & Files Tab */}
-                <TabsContent value="image">
-                  <div className="space-y-4">
-                    <div className="border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center">
-                      <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <p className="mt-4 text-muted-foreground">
-                        Arraste e solte imagens ou clique para selecionar
-                      </p>
-                      <Input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-4"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Selecionar Imagens
-                      </Button>
-                    </div>
-                    {selectedFiles.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="font-medium">Arquivos selecionados:</p>
-                        <ul className="space-y-2">
-                          {selectedFiles.map((file, index) => (
-                            <li
-                              key={index}
-                              className="flex items-center justify-between bg-muted p-2 rounded-md"
-                            >
-                              <span className="truncate text-sm">{file.name}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveFile(index)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="files">
-                  <div className="space-y-4">
-                    <div className="border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center">
-                      <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <p className="mt-4 text-muted-foreground">
-                        Arraste e solte documentos ou clique para selecionar
-                      </p>
-                      <Input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept=".pdf,.doc,.docx,.txt"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-4"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Selecionar Documentos
-                      </Button>
-                    </div>
-                    {selectedFiles.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="font-medium">Arquivos selecionados:</p>
-                        <ul className="space-y-2">
-                          {selectedFiles.map((file, index) => (
-                            <li
-                              key={index}
-                              className="flex items-center justify-between bg-muted p-2 rounded-md"
-                            >
-                              <span className="truncate text-sm">{file.name}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveFile(index)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    
+                    <p className="text-sm text-muted-foreground">
+                      Formatos aceitos: JPG, PNG, GIF, WebP
+                    </p>
                   </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
 
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <Button type="submit" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? (
+          {/* Submit */}
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              asChild
+            >
+              <Link href="/dashboard">Cancelar</Link>
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={isUploading || !selectedCategory}
+            >
+              {isUploading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Registrando...
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
                 </>
               ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Registrar Memória
-                </>
+                "Registrar Memória"
               )}
             </Button>
           </div>
         </form>
-      </main>
+      </div>
     </div>
   );
 }
-
